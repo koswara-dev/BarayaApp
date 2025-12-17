@@ -1,19 +1,26 @@
 /**
- * Sample React Native App
- * https://github.com/facebook/react-native
+ * Baraya App
+ * React Native application with secure authentication
  *
  * @format
  */
 
+import React, { useEffect } from 'react';
 import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
+import Toast from './src/components/Toast';
+import useAuthStore from './src/stores/authStore';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
+  const checkAuth = useAuthStore((state) => state.checkAuth);
+
+  // Call checkAuth only once when the application starts
+  // This restores the user session from secure storage
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   return (
     <SafeAreaProvider>
@@ -24,11 +31,10 @@ function App() {
 }
 
 function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
   return (
     <View style={styles.container}>
       <RootNavigator />
+      <Toast />
     </View>
   );
 }

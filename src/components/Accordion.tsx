@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 
-export default function Accordion({ title, items }: any) {
+export default function Accordion({ title, items, children }: any) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -12,16 +12,18 @@ export default function Accordion({ title, items }: any) {
         onPress={() => setOpen(!open)}
       >
         <Text style={styles.title}>{title}</Text>
-        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={20} />
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={20} color="#334155" />
       </TouchableOpacity>
 
       {open && (
         <View style={styles.content}>
-          {items.map((item: string, index: number) => (
-            <Text key={index} style={styles.item}>
-              {index + 1}. {item}
-            </Text>
-          ))}
+          {children ? children : (
+            items && items.map((item: string, index: number) => (
+              <Text key={index} style={styles.item}>
+                {index + 1}. {item}
+              </Text>
+            ))
+          )}
         </View>
       )}
     </View>
