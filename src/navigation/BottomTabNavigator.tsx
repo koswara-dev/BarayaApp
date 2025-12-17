@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Feather';
 import HomeScreen from '../screens/HomeScreen';
+import ServiceScreen from '../screens/ServiceScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -17,7 +18,7 @@ export default function BottomTabNavigator() {
       />
       <Tab.Screen
         name="Layanan"
-        component={HomeScreen}
+        component={ServiceScreen}
         options={{
           tabBarIcon: ({ color }) => <Icon name="grid" size={20} color={color} />
         }}
