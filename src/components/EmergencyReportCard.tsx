@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Linking } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { getImageUrl } from '../config/api';
 
 interface EmergencyReportCardProps {
     item: {
@@ -63,7 +64,7 @@ export const EmergencyReportCard = ({ item, onPress }: EmergencyReportCardProps)
             <Text style={styles.message}>{item.pesan}</Text>
 
             {item.urlFoto && (
-                <Image source={{ uri: item.urlFoto }} style={styles.evidenceImage} resizeMode="cover" />
+                <Image source={{ uri: getImageUrl(item.urlFoto) }} style={styles.evidenceImage} resizeMode="cover" />
             )}
 
             <View style={styles.footer}>

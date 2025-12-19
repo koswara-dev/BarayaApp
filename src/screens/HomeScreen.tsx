@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   TextInput,
@@ -17,36 +17,28 @@ import AnnouncementCard from '../components/AnnouncementCard';
 import { services, announcements } from '../data/mockData';
 import Icon from "react-native-vector-icons/Ionicons";
 import useAuthStore from '../stores/authStore';
-import api from '../config/api';
+import { getImageUrl } from '../config/api';
+import useUserStore from '../stores/userStore';
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
   // const [showNotifications, setShowNotifications] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
   const user = useAuthStore((state) => state.user);
 
-  const fetchProfile = useCallback(async () => {
-    if (!user?.id) return;
-
-    try {
-      const res = await api.get(`/users/${user.id}`);
-      if (res.data.success) {
-        setProfile(res.data.data);
-      }
-    } catch (error) {
-      console.log("Failed to fetch profile home", error);
-    }
-  }, [user?.id]);
+  // Use shared userStore instead of local state
+  const { profile, fetchUserProfile } = useUserStore();
 
   useEffect(() => {
-    fetchProfile();
-  }, [fetchProfile]);
+    if (user?.id && !profile) {
+      fetchUserProfile(user.id);
+    }
+  }, [user?.id, profile, fetchUserProfile]);
 
   const displayUser = profile ? {
     fullName: profile.fullName || user?.fullName || "User",
     email: profile.email || user?.email,
     role: profile.role || user?.role,
-    avatar: profile?.urlFoto || (user as any)?.urlFoto || (user as any)?.avatar
+    avatar: getImageUrl(profile?.urlFoto) || getImageUrl((user as any)?.urlFoto) || (user as any)?.avatar
   } : null;
 
   return (

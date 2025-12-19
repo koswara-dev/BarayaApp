@@ -8,7 +8,7 @@ export const decodeToken = (token: string): JWTPayload | null => {
     try {
         return jwtDecode<JWTPayload>(token);
     } catch (e) {
-        console.error('Error decoding JWT:', e);
+        // console.error('Error decoding JWT:', e);
         return null;
     }
 };
@@ -37,14 +37,26 @@ export const extractUserFromToken = (token: string): User | null => {
         const decoded = decodeToken(token);
         if (!decoded) return null;
 
+        // // Log for debugging (will show in terminal/console)
+        // console.log('Decoded JWT Payload:', decoded);
+
+        // Try to get ID from various possible fields
+        const id = decoded.sub || (decoded as any).id || (decoded as any).userId || (decoded as any).uid;
+
+        if (!id) {
+            // console.error('No ID found in token payload');
+            return null;
+        }
+
         return {
-            id: decoded.sub,
-            // email property removed from token
-            fullName: decoded.fullName,
-            role: decoded.role,
+            id: String(id), // Ensure it's a string
+            fullName: decoded.fullName || (decoded as any).name || 'User',
+            username: decoded.username || (decoded as any).preferred_username,
+            email: decoded.email,
+            role: decoded.role || 'USER',
         };
     } catch (e) {
-        console.error('Error extracting user from token:', e);
+        // console.error('Error extracting user from token:', e);
         return null;
     }
 };

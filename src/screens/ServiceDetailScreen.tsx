@@ -17,7 +17,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { RootStackParamList } from '../navigation/types';
 import { Feedback, FeedbackResponse } from '../types/service';
-import api from '../config/api';
+import api, { getImageUrl } from '../config/api';
 import useAuthStore from '../stores/authStore';
 import useToastStore from '../stores/toastStore';
 import Accordion from '../components/Accordion';
@@ -386,7 +386,7 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
                         <View key={item.id} style={styles.card}>
                             <View style={styles.reviewHeader}>
                                 <Image
-                                    source={{ uri: item.urlFoto || `https://ui-avatars.com/api/?name=${item.userName}&background=random` }}
+                                    source={{ uri: getImageUrl(item.urlFoto) || `https://ui-avatars.com/api/?name=${item.userName}&background=random` }}
                                     style={styles.avatar}
                                 />
                                 <View style={{ flex: 1 }}>

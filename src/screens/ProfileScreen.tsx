@@ -5,46 +5,42 @@ import { MenuSection } from '../components/MenuSection';
 import { LogoutButton } from '../components/LogoutButton';
 import { menuSection1, menuSection2 } from '../data/profileData';
 import useAuthStore from '../stores/authStore';
-import api from '../config/api';
+import api, { getImageUrl } from '../config/api';
 import useToastStore from '../stores/toastStore';
 import useAuthActions from '../hooks/useAuthActions';
 import { ConfirmModal } from '../components/ConfirmModal';
+
+import useUserStore from '../stores/userStore';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function ProfileScreen({ navigation }: any) {
     const user = useAuthStore((state) => state.user);
     const showToast = useToastStore((state) => state.showToast);
     const { logout } = useAuthActions();
 
-    const [profile, setProfile] = useState<any>(null);
-    const [loading, setLoading] = useState(false);
+    const { profile, loading, fetchUserProfile } = useUserStore();
     const [refreshing, setRefreshing] = useState(false);
     const [isLogoutModalVisible, setLogoutModalVisible] = useState(false);
 
-    const fetchProfile = useCallback(async () => {
-        if (!user?.id) return;
-
-        try {
-            setLoading(true);
-            const res = await api.get(`/users/${user.id}`);
-            if (res.data.success) {
-                setProfile(res.data.data);
-            }
-        } catch (error) {
-            console.log("Failed to fetch profile", error);
-            showToast("Gagal memuat profil", "error");
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
+    const loadData = useCallback(async () => {
+        if (user?.id) {
+            await fetchUserProfile(user.id);
         }
-    }, [user?.id, showToast]);
+    }, [user?.id, fetchUserProfile]);
 
-    useEffect(() => {
-        fetchProfile();
-    }, [fetchProfile]);
+    // Refresh data when screen comes into focus (optional but good for consistency)
+    useFocusEffect(
+        useCallback(() => {
+            if (!profile) {
+                loadData();
+            }
+        }, [loadData, profile])
+    );
 
-    const onRefresh = () => {
+    const onRefresh = async () => {
         setRefreshing(true);
-        fetchProfile();
+        await loadData();
+        setRefreshing(false);
     };
 
     const handleMenuPress = (id: string) => {
@@ -68,7 +64,7 @@ export default function ProfileScreen({ navigation }: any) {
     };
 
     const handleProfilePress = () => {
-        showToast("Edit profil belum tersedia", "info");
+        navigation.navigate('ProfileDetail');
     };
 
     const handleLogout = () => {
@@ -80,7 +76,7 @@ export default function ProfileScreen({ navigation }: any) {
         logout();
         navigation.reset({
             index: 0,
-            routes: [{ name: 'Login' }],
+            routes: [{ name: 'Welcome' }],
         });
         showToast("Berhasil keluar", "success");
     };
@@ -88,7 +84,7 @@ export default function ProfileScreen({ navigation }: any) {
     const displayUser = profile ? {
         name: profile.fullName || "User",
         email: profile.email || "email@example.com",
-        avatar: profile.urlFoto || "",
+        avatar: getImageUrl(profile.urlFoto) || "",
         role: profile.role || "User"
     } : {
         name: user?.fullName || "Loading...",

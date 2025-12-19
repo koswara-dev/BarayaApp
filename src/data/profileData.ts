@@ -13,9 +13,9 @@ export interface UserProfile {
 }
 
 export const userData: UserProfile = {
-    name: 'Budi Santoso',
-    email: 'budi.santoso@email.com',
-    avatar: { uri: 'https://ui-avatars.com/api/?name=Budi+Santoso&background=0D8ABC&color=fff' }, // Temporary placeholder
+    name: 'User',
+    email: "",
+    avatar: null,
 };
 
 export const menuSection1: MenuItem[] = [

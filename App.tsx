@@ -11,13 +11,26 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import RootNavigator from './src/navigation/RootNavigator';
 import Toast from './src/components/Toast';
 import useAuthStore from './src/stores/authStore';
+import useNotificationStore from './src/stores/notificationStore';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
+  const { startPolling, stopPolling } = useNotificationStore();
   const checkAuth = useAuthStore((state) => state.checkAuth);
+  const token = useAuthStore((state) => state.token);
 
-  // Call checkAuth only once when the application starts
-  // This restores the user session from secure storage
+  // Handle polling lifecycle based on auth state
+  useEffect(() => {
+    if (token) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+
+    return () => stopPolling();
+  }, [token, startPolling, stopPolling]);
+
+  // Restore session once on mount
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
