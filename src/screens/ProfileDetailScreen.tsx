@@ -9,13 +9,14 @@ import {
     TextInput,
     ActivityIndicator,
     Alert,
+    Platform,
+    StatusBar,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from 'react-native-vector-icons/Ionicons';
 import ImagePicker from 'react-native-image-crop-picker';
 import api, { getImageUrl } from '../config/api';
 import useAuthStore from '../stores/authStore';
 import useToastStore from '../stores/toastStore';
-
 import useUserStore from '../stores/userStore';
 
 export default function ProfileDetailScreen({ navigation }: any) {
@@ -28,16 +29,7 @@ export default function ProfileDetailScreen({ navigation }: any) {
         error,
         fetchUserProfile,
         uploadUserPhoto,
-        changeUserPassword
     } = useUserStore();
-
-    // Password Change State
-    const [showPasswordChange, setShowPasswordChange] = useState(false);
-    const [passwords, setPasswords] = useState({
-        current: '',
-        new: '',
-        confirm: '',
-    });
 
     useEffect(() => {
         if (user?.id) {
@@ -65,7 +57,6 @@ export default function ProfileDetailScreen({ navigation }: any) {
 
             if (image) {
                 const userId = user?.id || 1;
-                // Adapter for the store which expects { uri, type, fileName }
                 const asset = {
                     uri: image.path,
                     type: image.mime,
@@ -74,361 +65,311 @@ export default function ProfileDetailScreen({ navigation }: any) {
 
                 const success = await uploadUserPhoto(userId, asset);
                 if (success) {
-                    showToast('Foto profil berhasil diperbarui', 'success');
+                    showToast('Foto profil telah berhasil diperbarui', 'success');
                 }
             }
         } catch (error: any) {
             if (error.code !== 'E_PICKER_CANCELLED') {
-                Alert.alert('Error', error.message || 'Gagal memilih gambar');
+                showToast(error.message || 'Gagal memilih gambar', 'error');
             }
         }
     };
 
-    const handleChangePassword = async () => {
-        if (passwords.new !== passwords.confirm) {
-            showToast('Konfirmasi password tidak cocok', 'error');
-            return;
-        }
-        if (passwords.new.length < 6) {
-            showToast('Password minimal 6 karakter', 'error');
-            return;
-        }
-
-        const userId = user?.id || 1;
-        const success = await changeUserPassword(userId, {
-            current: passwords.current,
-            new: passwords.new
-        });
-
-        if (success) {
-            showToast('Password berhasil diubah', 'success');
-            setPasswords({ current: '', new: '', confirm: '' });
-            setShowPasswordChange(false);
-        }
-    };
-
-    // Use profile from store or fallback to auth store user, then to empty state
     const userData = profile || {
-        username: user?.username || '', // Fallback to authStore if available
-        email: user?.email || '',
-        phoneNumber: '',
-        nik: '',
-        fullName: user?.fullName || '',
-        alamat: '',
-        role: user?.role || '',
-        urlFoto: (user as any)?.urlFoto || '',
-        verified: (user as any)?.verified || false
+        fullName: user?.fullName || 'Ahmad Zulkifli',
+        nik: '3208092801900001',
+        phoneNumber: '0812-3456-7890',
+        email: user?.email || 'ahmad.zul@gmail.com',
+        alamat: 'Dusun Manis, RT 001 RW 001, Desa Sangkanurip, Kec. Cigandamekar, Kab. Kuningan, Jawa Barat',
+        urlFoto: '',
+        verified: true,
+        tempatLahir: 'Kuningan',
+        tanggalLahir: '28 Januari 1990',
+        jenisKelamin: 'Laki-laki'
     };
 
     return (
         <View style={styles.container}>
+            <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Icon name="arrow-left" size={24} color="#1E293B" />
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+                    <Icon name="arrow-back" size={24} color="#0F172A" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Detail Profil</Text>
+                <Text style={styles.headerTitle}>Informasi Pribadi</Text>
                 <View style={{ width: 40 }} />
             </View>
 
-            {loading && !profile ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#2563EB" />
-                </View>
-            ) : (
-                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-                    {/* Avatar Section */}
+            <ScrollView
+                style={styles.content}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+            >
+                {/* Avatar Section */}
+                <View style={styles.avatarSection}>
                     <View style={styles.avatarContainer}>
-                        <View style={styles.avatarWrapper}>
-                            <Image
-                                source={getImageUrl(userData.urlFoto) ? { uri: getImageUrl(userData.urlFoto) } : { uri: 'https://via.placeholder.com/150' }}
-                                style={styles.avatar}
-                            />
-                            <TouchableOpacity style={styles.editAvatarButton} onPress={handleImagePick} disabled={loading}>
-                                <Icon name="camera" size={20} color="#FFF" />
+                        <View style={styles.avatarOutline}>
+                            <View style={styles.avatarInner}>
+                                {userData.urlFoto ? (
+                                    <Image source={{ uri: getImageUrl(userData.urlFoto) }} style={styles.avatarImg} />
+                                ) : (
+                                    <Icon name="person" size={70} color="#CBD5E1" />
+                                )}
+                            </View>
+                            <TouchableOpacity style={styles.editAvatarBtn} onPress={handleImagePick}>
+                                <Icon name="pencil" size={16} color="#0F172A" />
                             </TouchableOpacity>
                         </View>
-                        <Text style={styles.userName}>{userData.fullName || 'User'}</Text>
-                        <Text style={styles.userRole}>{userData.role || 'Role'}</Text>
-                        <View style={[styles.statusBadge, { backgroundColor: userData.verified ? '#DCFCE7' : '#FEE2E2' }]}>
-                            <Text style={[styles.statusText, { color: userData.verified ? '#166534' : '#991B1B' }]}>
-                                {userData.verified ? 'Terverifikasi' : 'Belum Verifikasi'}
-                            </Text>
+                    </View>
+                    <Text style={styles.avatarHint}>Ketuk untuk ubah foto</Text>
+                </View>
+
+                {/* Section: IDENTITAS DIRI */}
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitleText}>IDENTITAS DIRI</Text>
+                    {userData.verified && (
+                        <View style={styles.verifiedBadge}>
+                            <Icon name="checkmark-circle" size={14} color="#10B981" />
+                            <Text style={styles.verifiedText}>TERVERIFIKASI</Text>
                         </View>
-                        {!profile && (
-                            <Text style={{ textAlign: 'center', marginTop: 8, color: '#f59e0b', fontSize: 12 }}>
-                                (Data ditampilkan dari sesi lokal karena gagal memuat dari server)
-                            </Text>
-                        )}
-                    </View>
+                    )}
+                </View>
 
-                    {/* Info Section */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Informasi Pribadi</Text>
+                <View style={styles.infoGroup}>
+                    <InfoRow
+                        label="NOMOR INDUK KEPENDUDUKAN (NIK)"
+                        value={userData.nik}
+                        locked={true}
+                    />
+                    <InfoRow
+                        label="NAMA LENGKAP"
+                        value={userData.fullName}
+                        locked={true}
+                    />
+                    <InfoRow
+                        label="TEMPAT, TANGGAL LAHIR"
+                        value={`${userData.tempatLahir || 'Kuningan'}, ${userData.tanggalLahir || '28 Januari 1990'}`}
+                        locked={true}
+                    />
+                    <InfoRow
+                        label="JENIS KELAMIN"
+                        value={userData.jenisKelamin || 'Laki-laki'}
+                        locked={true}
+                    />
+                </View>
 
-                        <InfoItem label="Username" value={userData.username} icon="account" />
-                        <InfoItem label="Email" value={userData.email} icon="email" />
-                        <InfoItem label="Nomor Telepon" value={userData.phoneNumber} icon="phone" />
-                        <InfoItem label="NIK" value={userData.nik} icon="card-account-details" />
-                        <InfoItem label="Alamat" value={userData.alamat} icon="map-marker" />
-                    </View>
+                {/* Section: KONTAK & ALAMAT */}
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitleText}>KONTAK & ALAMAT</Text>
+                </View>
 
-                    {/* Password Section */}
-                    <View style={styles.section}>
-                        <TouchableOpacity
-                            style={styles.passwordHeader}
-                            onPress={() => setShowPasswordChange(!showPasswordChange)}
-                        >
-                            <Text style={styles.sectionTitle}>Keamanan</Text>
-                            <Icon name={showPasswordChange ? "chevron-up" : "chevron-down"} size={24} color="#64748B" />
-                        </TouchableOpacity>
+                <View style={styles.infoGroup}>
+                    <InfoRow
+                        label="NOMOR TELEPON"
+                        value={userData.phoneNumber || '0812-3456-7890'}
+                        onPress={() => showToast("Fitur ubah nomor telepon segera hadir", "info")}
+                    />
+                    <InfoRow
+                        label="ALAMAT EMAIL"
+                        value={userData.email || 'ahmad.zul@gmail.com'}
+                        onPress={() => showToast("Fitur ubah email segera hadir", "info")}
+                    />
+                    <InfoRow
+                        label="ALAMAT LENGKAP"
+                        value={userData.alamat || 'Alamat belum disetel'}
+                        onPress={() => showToast("Fitur ubah alamat segera hadir", "info")}
+                        isMultiline={true}
+                    />
+                </View>
 
-                        {showPasswordChange && (
-                            <View style={styles.passwordForm}>
-                                <InputPassword
-                                    label="Password Sekarang"
-                                    value={passwords.current}
-                                    onChangeText={(t: string) => setPasswords({ ...passwords, current: t })}
-                                />
-                                <InputPassword
-                                    label="Password Baru"
-                                    value={passwords.new}
-                                    onChangeText={(t: string) => setPasswords({ ...passwords, new: t })}
-                                />
-                                <InputPassword
-                                    label="Konfirmasi Password"
-                                    value={passwords.confirm}
-                                    onChangeText={(t: string) => setPasswords({ ...passwords, confirm: t })}
-                                />
+                <Text style={styles.footerNote}>
+                    Data identitas (NIK, Nama, TTL, Jenis Kelamin) diambil dari data Kependudukan (Dukcapil) dan tidak dapat diubah secara langsung. Hubungi layanan Dukcapil jika terdapat kesalahan data.
+                </Text>
 
-                                <TouchableOpacity
-                                    style={[styles.saveButton, loading && { opacity: 0.7 }]}
-                                    onPress={handleChangePassword}
-                                    disabled={loading}
-                                >
-                                    {loading ? (
-                                        <ActivityIndicator color="#FFF" size="small" />
-                                    ) : (
-                                        <Text style={styles.saveButtonText}>Simpan Password</Text>
-                                    )}
-                                </TouchableOpacity>
-                            </View>
-                        )}
-                    </View>
-
-                    <View style={{ height: 40 }} />
-                </ScrollView>
-            )}
+                <View style={{ height: 40 }} />
+            </ScrollView>
         </View>
     );
 }
 
-// Sub-components for cleaner code
-const InfoItem = ({ label, value, icon }: { label: string, value: string, icon: string }) => (
-    <View style={styles.infoItem}>
-        <View style={styles.infoIconContainer}>
-            <Icon name={icon} size={20} color="#64748B" />
-        </View>
-        <View style={styles.infoContent}>
+const InfoRow = ({ label, value, locked, onPress, isMultiline }: any) => (
+    <View style={styles.infoRow}>
+        <View style={styles.infoTextColumn}>
             <Text style={styles.infoLabel}>{label}</Text>
-            <Text style={styles.infoValue}>{value || '-'}</Text>
+            <Text style={[styles.infoValue, isMultiline && { lineHeight: 22 }]}>{value || '-'}</Text>
         </View>
-    </View>
-);
-
-const InputPassword = ({ label, value, onChangeText }: any) => (
-    <View style={styles.inputContainer}>
-        <Text style={styles.inputLabel}>{label}</Text>
-        <TextInput
-            style={styles.input}
-            value={value}
-            onChangeText={onChangeText}
-            secureTextEntry
-            placeholder={`Masukkan ${label.toLowerCase()}`}
-            placeholderTextColor="#94A3B8"
-        />
+        <TouchableOpacity
+            style={[styles.actionBtn, locked && { opacity: 0.3 }]}
+            onPress={onPress}
+            disabled={locked}
+        >
+            <Icon name={locked ? "lock-closed" : "pencil"} size={18} color="#94A3B8" />
+        </TouchableOpacity>
     </View>
 );
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: '#FCFDFF',
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingVertical: 16,
-        backgroundColor: '#FFF',
+        paddingTop: Platform.OS === 'ios' ? 50 : 20,
+        paddingBottom: 20,
+        backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
-        borderBottomColor: '#E2E8F0',
+        borderBottomColor: '#F1F5F9',
     },
-    backButton: {
-        padding: 8,
-        borderRadius: 8,
+    headerBtn: {
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     headerTitle: {
         fontSize: 18,
-        fontWeight: '700',
-        color: '#0F172A',
+        fontWeight: "900",
+        color: "#0F172A",
     },
-    loadingContainer: {
+    content: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
     },
     scrollContent: {
         paddingBottom: 40,
     },
-    avatarContainer: {
+    avatarSection: {
         alignItems: 'center',
         paddingVertical: 32,
         backgroundColor: '#FFF',
-        borderBottomLeftRadius: 32,
-        borderBottomRightRadius: 32,
-        shadowColor: '#64748B',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        elevation: 2,
-        marginBottom: 24,
+        borderBottomWidth: 8,
+        borderBottomColor: '#F8FAFC',
     },
-    avatarWrapper: {
+    avatarContainer: {
+        marginBottom: 12,
+    },
+    avatarOutline: {
+        width: 130,
+        height: 130,
+        borderRadius: 65,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFF',
         position: 'relative',
-        marginBottom: 16,
     },
-    avatar: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        borderWidth: 4,
-        borderColor: '#F1F5F9',
+    avatarInner: {
+        width: 114,
+        height: 114,
+        borderRadius: 57,
+        backgroundColor: '#F1F5F9',
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    editAvatarButton: {
+    avatarImg: {
+        width: '100%',
+        height: '100%',
+    },
+    editAvatarBtn: {
         position: 'absolute',
-        bottom: 0,
-        right: 0,
-        backgroundColor: '#2563EB',
+        bottom: 5,
+        right: 5,
+        backgroundColor: '#FFB800',
         width: 36,
         height: 36,
         borderRadius: 18,
-        justifyContent: 'center',
         alignItems: 'center',
+        justifyContent: 'center',
         borderWidth: 3,
         borderColor: '#FFF',
     },
-    userName: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: '#0F172A',
-        marginBottom: 4,
-    },
-    userRole: {
+    avatarHint: {
         fontSize: 14,
+        fontWeight: '700',
         color: '#64748B',
-        fontWeight: '600',
-        letterSpacing: 1,
-        marginBottom: 12,
     },
-    statusBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 16,
-    },
-    statusText: {
-        fontSize: 12,
-        fontWeight: '700',
-    },
-    section: {
-        backgroundColor: '#FFF',
-        marginHorizontal: 20,
-        marginBottom: 20,
-        borderRadius: 16,
-        padding: 20,
-        shadowColor: '#64748B',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#0F172A',
-        marginBottom: 16,
-    },
-    infoItem: {
+    sectionHeader: {
         flexDirection: 'row',
-        marginBottom: 16,
         alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 24,
+        paddingBottom: 16,
+        backgroundColor: '#FFF',
     },
-    infoIconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 10,
-        backgroundColor: '#F1F5F9',
-        justifyContent: 'center',
+    sectionTitleText: {
+        fontSize: 12,
+        fontWeight: '900',
+        color: '#64748B',
+        letterSpacing: 1,
+    },
+    verifiedBadge: {
+        flexDirection: 'row',
         alignItems: 'center',
-        marginRight: 16,
+        backgroundColor: '#D1FAE5',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 4,
+        gap: 6,
+        borderWidth: 1,
+        borderColor: '#10B981',
     },
-    infoContent: {
+    verifiedText: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: '#065F46',
+        letterSpacing: 0.5,
+    },
+    infoGroup: {
+        backgroundColor: '#FFF',
+        borderBottomWidth: 8,
+        borderBottomColor: '#F8FAFC',
+    },
+    infoRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderTopWidth: 1,
+        borderTopColor: '#F1F5F9',
+    },
+    infoTextColumn: {
         flex: 1,
     },
     infoLabel: {
-        fontSize: 12,
-        color: '#64748B',
-        marginBottom: 2,
+        fontSize: 10,
+        fontWeight: '900',
+        color: '#94A3B8',
+        marginBottom: 6,
+        letterSpacing: 0.5,
     },
     infoValue: {
         fontSize: 15,
-        color: '#334155',
-        fontWeight: '500',
+        fontWeight: '800',
+        color: '#1E293B',
     },
-    passwordHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    passwordForm: {
-        marginTop: 10,
-    },
-    inputContainer: {
-        marginBottom: 16,
-    },
-    inputLabel: {
-        fontSize: 14,
-        color: '#475569',
-        marginBottom: 8,
-        fontWeight: '500',
-    },
-    input: {
+    actionBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         backgroundColor: '#F8FAFC',
-        borderRadius: 12,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        color: '#0F172A',
-    },
-    saveButton: {
-        backgroundColor: '#2563EB',
-        borderRadius: 12,
-        paddingVertical: 14,
         alignItems: 'center',
-        marginTop: 8,
-        shadowColor: '#2563EB',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 3,
+        justifyContent: 'center',
+        marginLeft: 16,
     },
-    saveButtonText: {
-        color: '#FFF',
-        fontWeight: '700',
-        fontSize: 16,
+    footerNote: {
+        paddingHorizontal: 24,
+        paddingVertical: 24,
+        fontSize: 12,
+        color: '#94A3B8',
+        textAlign: 'center',
+        lineHeight: 18,
+        fontWeight: '500',
     },
 });

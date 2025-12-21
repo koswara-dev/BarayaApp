@@ -13,6 +13,8 @@ import PrimaryButton from '../components/PrimaryButton';
 import useToastStore from '../stores/toastStore';
 import api from '../config/api';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import LoadingOverlay from '../components/LoadingOverlay';
+import CustomAlert from '../components/CustomAlert';
 
 export default function RegisterFormScreen({ navigation, route }: any) {
     const { formData } = route.params;
@@ -30,6 +32,7 @@ export default function RegisterFormScreen({ navigation, route }: any) {
     const [otpError, setOtpError] = useState('');
     const [otpSuccess, setOtpSuccess] = useState(false);
     const [otpSent, setOtpSent] = useState(route.params?.otpSent || false);
+    const [showAlert, setShowAlert] = useState(false);
 
     // Send OTP on mount - DISABLED because register triggers it
     // useEffect(() => {
@@ -74,14 +77,8 @@ export default function RegisterFormScreen({ navigation, route }: any) {
 
             if (verifyResponse.status === 200 || verifyResponse.data?.success) {
                 setOtpSuccess(true);
-                showToast("Verifikasi Berhasil! Silakan Login", "success");
-
-                setTimeout(() => {
-                    navigation.reset({
-                        index: 0,
-                        routes: [{ name: 'Login' }],
-                    });
-                }, 500);
+                setLoading(false);
+                setShowAlert(true);
             } else {
                 setOtpError(verifyResponse.data?.message || "Kode OTP salah");
                 setOtp(['', '', '', '', '', '']);
@@ -136,7 +133,7 @@ export default function RegisterFormScreen({ navigation, route }: any) {
         try {
             const response = await api.post('/auth/resend-otp', { email: formData.email });
             if (response.status === 200 || response.data?.success) {
-                showToast("Kode OTP dikirim ke email", "success");
+                showToast("Kode OTP telah dikirimkan ke email Anda", "success");
                 setOtpSent(true);
                 setTimer(60);
             } else {
@@ -161,6 +158,21 @@ export default function RegisterFormScreen({ navigation, route }: any) {
 
     return (
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
+            {/* Loading Overlay */}
+            <LoadingOverlay visible={loading} message="Memverifikasi..." />
+
+            <CustomAlert
+                visible={showAlert}
+                title="Pendaftaran Berhasil"
+                message="Selamat! Akun Anda telah berhasil dibuat. Silakan masuk untuk mulai menggunakan layanan Kuningan Melesat."
+                onClose={() => {
+                    setShowAlert(false);
+                    navigation.reset({
+                        index: 0,
+                        routes: [{ name: 'Login' }],
+                    });
+                }}
+            />
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
 
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -214,7 +226,6 @@ export default function RegisterFormScreen({ navigation, route }: any) {
                 <PrimaryButton
                     title="Verifikasi & Daftar"
                     onPress={handleVerifyOtp}
-                    loading={loading}
                     style={{ marginTop: 24 }}
                 />
 

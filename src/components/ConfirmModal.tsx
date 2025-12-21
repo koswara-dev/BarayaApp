@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     },
     modalContainer: {
         backgroundColor: '#FFF',
-        borderRadius: 20,
+        borderRadius: 0,
         padding: 24,
         width: '100%',
         maxWidth: 340,
@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     modalBtn: {
         flex: 1,
         paddingVertical: 12,
-        borderRadius: 12,
+        borderRadius: 0,
         alignItems: 'center',
         justifyContent: 'center',
     },

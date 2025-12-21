@@ -1,6 +1,6 @@
 // Auth Types for the application
 
-export type UserRole = 'ADMIN' | 'STAFF' | 'USER';
+export type UserRole = 'ADMIN' | 'STAFF' | 'USER' | string;
 
 export interface User {
     id: string;

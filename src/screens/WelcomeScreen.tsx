@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import {
     View,
     Text,
@@ -6,106 +6,68 @@ import {
     TouchableOpacity,
     StatusBar,
     Dimensions,
-    ScrollView,
-    NativeSyntheticEvent,
-    NativeScrollEvent,
+    Image,
+    SafeAreaView,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from 'react-native-vector-icons/Ionicons';
 
-const { width } = Dimensions.get('window');
-
-const slides = [
-    {
-        icon: 'shield-check',
-        title: 'Layanan Publik Digital',
-        description: 'Akses layanan administrasi publik dengan mudah, cepat, dan aman. Satu aplikasi untuk semua kebutuhan Anda.',
-    },
-    {
-        icon: 'file-document-outline',
-        title: 'Pengajuan Dokumen',
-        description: 'Ajukan dokumen seperti KTP, KK, akta kelahiran, dan surat keterangan lainnya secara online.',
-    },
-    {
-        icon: 'bell-ring-outline',
-        title: 'Notifikasi Real-time',
-        description: 'Dapatkan update status pengajuan dan informasi penting langsung di aplikasi Anda.',
-    },
-];
+const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen({ navigation }: any) {
-    const [activeIndex, setActiveIndex] = useState(0);
-    const scrollViewRef = useRef<ScrollView>(null);
-
-    const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        const contentOffsetX = event.nativeEvent.contentOffset.x;
-        const index = Math.round(contentOffsetX / (width - 64));
-        setActiveIndex(index);
-    };
-
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#2563EB" />
+        <SafeAreaView style={styles.container}>
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-            {/* Top Section - Blue Background */}
-            <View style={styles.topSection}>
-                <View style={styles.logoContainer}>
-                    <Icon name="earth" size={32} color="#FFF" />
-                </View>
-                <Text style={styles.brandName}>
-                    <Text style={styles.brandBold}>Baraya</Text>
-                    <Text style={styles.brandLight}>App</Text>
-                </Text>
-                <Text style={styles.adminPortal}>PELAYANAN PUBLIK</Text>
+            {/* Background Pattern Mockup (Optional) */}
+            <View style={styles.bgPatternContainer}>
+                <View style={styles.circle1} />
+                <View style={styles.circle2} />
+                <View style={styles.circle3} />
             </View>
 
-            {/* Middle Section - Swipeable Content */}
-            <View style={styles.middleSection}>
-                <ScrollView
-                    ref={scrollViewRef}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    onScroll={handleScroll}
-                    scrollEventThrottle={16}
-                    contentContainerStyle={styles.scrollContent}
-                    decelerationRate="fast"
-                    snapToInterval={width - 64}
-                    snapToAlignment="center"
-                >
-                    {slides.map((slide, index) => (
-                        <View key={index} style={styles.slideContainer}>
-                            <View style={styles.iconCard}>
-                                <Icon name={slide.icon} size={48} color="#2563EB" />
-                            </View>
-                            <Text style={styles.title}>{slide.title}</Text>
-                            <Text style={styles.description}>{slide.description}</Text>
+            <View style={styles.content}>
+                {/* Logo Section */}
+                <View style={styles.logoWrapper}>
+                    <View style={styles.logoStackUnderlay} />
+                    <View style={styles.logoMainBox}>
+                        <View style={styles.logoInnerContent}>
+                            <Image
+                                source={{ uri: 'https://kuningankab.go.id/id/wp-content/uploads/2021/04/LOGO-KUNINGAN-300x300.png' }}
+                                style={styles.logoImage}
+                                resizeMode="contain"
+                            />
+                            <Text style={styles.logoText}>I KUNINGAN</Text>
+                            <Text style={styles.logoTagline}>LAYANAN JADI MUDAH</Text>
                         </View>
-                    ))}
-                </ScrollView>
-
-                {/* Pagination Dots */}
-                <View style={styles.paginationContainer}>
-                    {slides.map((_, index) => (
-                        <View
-                            key={index}
-                            style={[
-                                styles.dot,
-                                activeIndex === index && styles.activeDot
-                            ]}
-                        />
-                    ))}
+                    </View>
                 </View>
+
+                {/* Title Section */}
+                <View style={styles.titleSection}>
+                    <Text style={styles.welcomeText}>SELAMAT DATANG DI</Text>
+                    <Text style={styles.brandPrimary}>Kuningan</Text>
+                    <Text style={styles.brandSecondary}>Melesat</Text>
+                </View>
+
+                {/* Divider */}
+                <View style={styles.divider} />
+
+                {/* Description */}
+                <Text style={styles.description}>
+                    Smart Service terintegrasi untuk masyarakat Kabupaten Kuningan.
+                    Kelola layanan publik dengan cepat, mudah, dan transparan.
+                </Text>
             </View>
 
             {/* Bottom Section - Buttons */}
-            <View style={styles.bottomSection}>
+            <View style={styles.actionsBox}>
                 <TouchableOpacity
                     style={styles.loginButton}
                     onPress={() => navigation.navigate('Login')}
                     activeOpacity={0.8}
                 >
-                    <Text style={styles.loginButtonText}>Masuk</Text>
-                    <Icon name="arrow-right" size={20} color="#FFF" />
+                    <Icon name="log-in-outline" size={24} color="#0F172A" />
+                    <Text style={styles.loginText}>Masuk</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -113,177 +75,198 @@ export default function WelcomeScreen({ navigation }: any) {
                     onPress={() => navigation.navigate('Register')}
                     activeOpacity={0.8}
                 >
-                    <Text style={styles.registerButtonText}>Daftar Akun</Text>
+                    <Icon name="person-add-outline" size={20} color="#0F172A" />
+                    <Text style={styles.registerText}>Daftar Akun</Text>
                 </TouchableOpacity>
 
-                {/* Footer Links */}
-                <View style={styles.footerLinks}>
-                    <Text style={styles.footerLink}>Kebijakan Privasi</Text>
-                    <Text style={styles.footerDot}>•</Text>
-                    <Text style={styles.footerLink}>Syarat Layanan</Text>
-                </View>
+                <Text style={styles.footerText}>
+                    PEMERINTAH KABUPATEN KUNINGAN © 2024
+                </Text>
             </View>
-        </View>
+
+            {/* Bottom Yellow Stripe */}
+            <View style={styles.yellowStripe} />
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F1F5F9',
+        backgroundColor: '#FFFFFF',
     },
-    // Top Section
-    topSection: {
-        backgroundColor: '#2563EB',
-        paddingTop: 60,
-        paddingBottom: 80,
-        alignItems: 'center',
-        borderBottomLeftRadius: 0,
-        borderBottomRightRadius: 0,
-    },
-    logoContainer: {
-        width: 64,
-        height: 64,
-        borderRadius: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    bgPatternContainer: {
+        ...StyleSheet.absoluteFillObject,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 16,
+        zIndex: -1,
     },
-    brandName: {
-        fontSize: 28,
-        marginBottom: 4,
+    circle1: {
+        width: 300,
+        height: 300,
+        borderRadius: 150,
+        borderWidth: 1,
+        borderColor: '#F8FAFC',
+        position: 'absolute',
     },
-    brandBold: {
-        fontWeight: '700',
-        color: '#FFF',
+    circle2: {
+        width: 500,
+        height: 500,
+        borderRadius: 250,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        position: 'absolute',
     },
-    brandLight: {
-        fontWeight: '400',
-        color: 'rgba(255, 255, 255, 0.9)',
+    circle3: {
+        width: 700,
+        height: 700,
+        borderRadius: 350,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        position: 'absolute',
     },
-    adminPortal: {
-        fontSize: 12,
-        color: 'rgba(255, 255, 255, 0.7)',
-        letterSpacing: 2,
-        fontWeight: '500',
-    },
-    // Middle Section
-    middleSection: {
+    content: {
         flex: 1,
-        marginTop: -40,
+        alignItems: 'center',
+        paddingTop: height * 0.1,
     },
-    scrollContent: {
-        paddingHorizontal: 32,
-    },
-    slideContainer: {
-        width: width - 64,
+    logoWrapper: {
+        width: 200,
+        height: 200,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: 16,
+        marginBottom: 40,
     },
-    iconCard: {
-        width: 100,
-        height: 100,
-        borderRadius: 24,
-        backgroundColor: '#FFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 32,
-        elevation: 8,
-        shadowColor: '#2563EB',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.15,
-        shadowRadius: 16,
+    logoStackUnderlay: {
+        width: 160,
+        height: 160,
+        backgroundColor: '#FEF3C7',
+        position: 'absolute',
+        transform: [{ rotate: '-6deg' }],
+        borderRadius: 8,
+        opacity: 0.5,
     },
-    title: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#0F172A',
-        marginBottom: 12,
-        textAlign: 'center',
-    },
-    description: {
-        fontSize: 14,
-        color: '#64748B',
-        textAlign: 'center',
-        lineHeight: 22,
-        paddingHorizontal: 8,
-    },
-    paginationContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 24,
-        marginBottom: 16,
-        gap: 8,
-    },
-    dot: {
-        width: 8,
-        height: 8,
+    logoMainBox: {
+        width: 170,
+        height: 170,
+        backgroundColor: '#FFFFFF',
         borderRadius: 4,
-        backgroundColor: '#CBD5E1',
+        padding: 2,
     },
-    activeDot: {
-        width: 24,
-        backgroundColor: '#2563EB',
-    },
-    // Bottom Section
-    bottomSection: {
-        paddingHorizontal: 24,
-        paddingBottom: 32,
-        paddingTop: 16,
-        backgroundColor: '#FFF',
-        borderTopLeftRadius: 32,
-        borderTopRightRadius: 32,
-        elevation: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-    },
-    loginButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#2563EB',
-        paddingVertical: 16,
-        borderRadius: 16,
-        marginBottom: 12,
-        gap: 8,
-    },
-    loginButtonText: {
-        color: '#FFF',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    registerButton: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#FFF',
-        paddingVertical: 16,
-        borderRadius: 16,
+    logoInnerContent: {
+        flex: 1,
         borderWidth: 1.5,
-        borderColor: '#E2E8F0',
+        borderColor: '#F1F5F9',
+        backgroundColor: '#F8F9F3', // Creamy background like the image
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 2,
+    },
+    logoImage: {
+        width: 60,
+        height: 60,
+        marginBottom: 8,
+    },
+    logoText: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: '#166534',
+        letterSpacing: 1,
+    },
+    logoTagline: {
+        fontSize: 6,
+        fontWeight: '700',
+        color: '#166534',
+        opacity: 0.6,
+    },
+    titleSection: {
+        alignItems: 'center',
         marginBottom: 20,
     },
-    registerButtonText: {
-        color: '#0F172A',
-        fontSize: 16,
-        fontWeight: '600',
+    welcomeText: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: '#FFB800',
+        letterSpacing: 1.5,
+        marginBottom: 8,
     },
-    footerLinks: {
+    brandPrimary: {
+        fontSize: 48,
+        fontWeight: '900',
+        color: '#0F172A',
+        lineHeight: 52,
+    },
+    brandSecondary: {
+        fontSize: 48,
+        fontWeight: '900',
+        color: '#FFB800',
+        lineHeight: 52,
+    },
+    divider: {
+        width: 60,
+        height: 4,
+        backgroundColor: '#F1F5F9',
+        borderRadius: 2,
+        marginBottom: 24,
+    },
+    description: {
+        paddingHorizontal: 54,
+        textAlign: 'center',
+        fontSize: 15,
+        color: '#64748B',
+        lineHeight: 24,
+        fontWeight: '500',
+    },
+    actionsBox: {
+        paddingHorizontal: 32,
+        paddingBottom: 40,
+        alignItems: 'center',
+    },
+    loginButton: {
+        width: '100%',
+        height: 60,
+        backgroundColor: '#FFB800',
+        borderRadius: 4,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
+        gap: 12,
+        marginBottom: 16,
     },
-    footerLink: {
-        fontSize: 12,
-        color: '#94A3B8',
+    loginText: {
+        fontSize: 18,
+        fontWeight: '900',
+        color: '#0F172A',
     },
-    footerDot: {
-        fontSize: 12,
+    registerButton: {
+        width: '100%',
+        height: 60,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 12,
+        borderWidth: 1.5,
+        borderColor: '#E2E8F0',
+        marginBottom: 40,
+    },
+    registerText: {
+        fontSize: 16,
+        fontWeight: '900',
+        color: '#0F172A',
+    },
+    footerText: {
+        fontSize: 10,
+        fontWeight: '900',
         color: '#CBD5E1',
+        letterSpacing: 1,
+    },
+    yellowStripe: {
+        height: 8,
+        backgroundColor: '#FFB800',
+        width: '100%',
+        position: 'absolute',
+        bottom: 0,
     },
 });

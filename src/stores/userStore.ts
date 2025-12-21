@@ -16,6 +16,9 @@ interface UserProfile {
     role: string;
     urlFoto: string;
     verified: boolean;
+    tempatLahir?: string;
+    tanggalLahir?: string;
+    jenisKelamin?: string;
     // Add other fields as necessary based on API response
 }
 

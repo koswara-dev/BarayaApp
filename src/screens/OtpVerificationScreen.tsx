@@ -1,25 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
-    TextInput
+    TextInput,
+    StatusBar,
+    Platform,
+    KeyboardAvoidingView,
+    ScrollView,
+    Dimensions,
 } from 'react-native';
-import PrimaryButton from '../components/PrimaryButton';
 import useToastStore from '../stores/toastStore';
 import api from '../config/api';
 import Icon from 'react-native-vector-icons/Ionicons';
+import LoadingOverlay from '../components/LoadingOverlay';
+import CustomAlert from '../components/CustomAlert';
 
 export default function OtpVerificationScreen({ navigation, route }: any) {
-    const { email } = route.params;
+    const { email } = route.params || { email: 'warga@kuningan.go.id' };
     const showToast = useToastStore((state) => state.showToast);
 
-    // Simple 6 digit OTP input state
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
-    const [timer, setTimer] = useState(60); // 60 seconds countdown
+    const [timer, setTimer] = useState(60);
     const [canResend, setCanResend] = useState(false);
+    const [error, setError] = useState('');
+    const [showAlert, setShowAlert] = useState(false);
+
+    const inputRefs = useRef<Array<TextInput | null>>([]);
 
     useEffect(() => {
         let interval: any;
@@ -33,51 +42,52 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
         return () => clearInterval(interval);
     }, [timer]);
 
-    const handleOtpChange = (value: string, index: number) => {
-        const newOtp = [...otp];
-        newOtp[index] = value;
-        setOtp(newOtp);
-
-        // Auto focus next input
-        if (value && index < 5) {
-            // This is a naive implementation without refs for brevity, 
-            // a proper one would use verify refs to focus next.
-        }
-    };
-
-    // Auto-submit when all 6 digits filled
+    // Auto submit when all 6 digits are filled
     useEffect(() => {
         const otpCode = otp.join('');
-        if (otpCode.length === 6 && !loading) {
+        if (otpCode.length === 6) {
             handleVerify();
         }
     }, [otp]);
 
-    const getOtpString = () => otp.join('');
+    const handleOtpChange = (value: string, index: number) => {
+        const newOtp = [...otp];
+        newOtp[index] = value;
+        setOtp(newOtp);
+        if (error) setError('');
+
+        // Auto focus next input
+        if (value && index < 5) {
+            inputRefs.current[index + 1]?.focus();
+        }
+    };
+
+    const handleKeyPress = (e: any, index: number) => {
+        if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
+            inputRefs.current[index - 1]?.focus();
+        }
+    };
 
     const handleVerify = async () => {
-        const otpCode = getOtpString();
+        const otpCode = otp.join('');
         if (otpCode.length < 6) {
             showToast("Masukkan 6 digit kode OTP", "error");
             return;
         }
 
         setLoading(true);
+        setError('');
         try {
             const response = await api.post('/auth/verify-otp', { email, otp: otpCode });
             if (response.data && (response.data.success || response.status === 200)) {
-                showToast("Verifikasi berhasil! Silakan login.", "success");
-                navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Login' }],
-                });
+                setLoading(false);
+                setShowAlert(true);
             } else {
-                showToast(response.data.message || "Kode OTP salah", "error");
+                setError(response.data.message || "Kode OTP salah");
             }
         } catch (error: any) {
-            console.error("OTP Verify Error:", error);
             const msg = error.response?.data?.message || "Verifikasi gagal";
-            showToast(msg, "error");
+            setError(msg);
         } finally {
             setLoading(false);
         }
@@ -93,6 +103,8 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
                 showToast("Kode OTP baru telah dikirim", "success");
                 setTimer(60);
                 setCanResend(false);
+                setOtp(['', '', '', '', '', '']);
+                inputRefs.current[0]?.focus();
             } else {
                 showToast(response.data.message || "Gagal mengirim ulang OTP", "error");
             }
@@ -104,118 +116,298 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
         }
     };
 
+    const formatTime = (seconds: number) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
+
+    const handleBack = () => {
+        if (route.params?.isFromRegister) {
+            navigation.navigate('Welcome');
+        } else {
+            navigation.goBack();
+        }
+    };
+
     return (
-        <View style={styles.container}>
-            <View style={styles.content}>
-                <View style={styles.iconContainer}>
-                    <Icon name="mail-unread-outline" size={60} color="#2563EB" />
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.container}
+        >
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+            {/* Loading Overlay */}
+            <LoadingOverlay visible={loading} message="Memverifikasi..." />
+
+            <CustomAlert
+                visible={showAlert}
+                title="Verifikasi Berhasil"
+                message="Selamat! Akun Anda telah berhasil diaktifkan. Silakan masuk untuk mulai menggunakan layanan Kuningan Melesat."
+                onClose={() => {
+                    setShowAlert(false);
+                    navigation.reset({
+                        index: 0,
+                        routes: [{ name: 'Login' }],
+                    });
+                }}
+            />
+            {/* Header */}
+            <View style={styles.header}>
+                <TouchableOpacity onPress={handleBack} style={styles.headerBtn}>
+                    <Icon name="arrow-back" size={24} color="#0F172A" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => showToast("Bantuan OTP", "info")} style={styles.headerBtn}>
+                    <Icon name="help-circle" size={24} color="#64748B" />
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Visual Icon */}
+                <View style={styles.logoWrapper}>
+                    <View style={styles.logoBox}>
+                        <Icon name="lock-open" size={32} color="#FFB800" />
+                    </View>
                 </View>
 
-                <Text style={styles.title}>Verifikasi Email</Text>
-                <Text style={styles.subtitle}>
-                    Kami telah mengirimkan kode verifikasi 6 digit ke email{' '}
-                    <Text style={styles.emailText}>{email}</Text>
-                </Text>
+                <Text style={styles.title}>Verifikasi OTP</Text>
 
-                <View style={styles.otpContainer}>
+                {/* UI Alur (Progress Indicator) if from register */}
+                {route.params?.isFromRegister && (
+                    <View style={styles.progressContainer}>
+                        <View style={[styles.stepDot, styles.activeDot]} />
+                        <View style={[styles.stepLine, styles.activeLine]} />
+                        <View style={[styles.stepDot, styles.activeDot]} />
+                        <View style={[styles.stepLine, styles.activeLine]} />
+                        <View style={[styles.stepDot, styles.activeDot]} />
+                    </View>
+                )}
+
+                <Text style={styles.subtitle}>
+                    Kode verifikasi 6 digit telah dikirim ke email
+                </Text>
+                <Text style={styles.emailText}>{email}</Text>
+
+                {/* OTP Inputs */}
+                <View style={styles.otpWrapper}>
                     {otp.map((digit, index) => (
                         <TextInput
                             key={index}
-                            style={styles.otpInput}
+                            ref={(el) => { inputRefs.current[index] = el; }}
+                            style={[
+                                styles.otpInput,
+                                otp[index] !== '' && styles.otpInputActive,
+                                error !== '' && styles.otpInputError
+                            ]}
                             value={digit}
-                            onChangeText={(val) => handleOtpChange(val, index)}
+                            onChangeText={(val) => handleOtpChange(val.replace(/[^0-9]/g, ''), index)}
+                            onKeyPress={(e) => handleKeyPress(e, index)}
                             keyboardType="number-pad"
                             maxLength={1}
                             textAlign="center"
+                            autoFocus={index === 0}
                         />
                     ))}
                 </View>
 
-                <PrimaryButton
-                    title="Verifikasi"
-                    onPress={handleVerify}
-                    loading={loading}
-                    style={{ marginTop: 30 }}
-                />
+                {error ? (
+                    <Text style={styles.errorText}>{error}</Text>
+                ) : null}
 
                 <View style={styles.resendContainer}>
-                    <Text style={styles.resendText}>Tidak menerima kode? </Text>
+                    <Text style={styles.resendInfo}>Tidak menerima kode?</Text>
                     <TouchableOpacity onPress={handleResend} disabled={!canResend}>
-                        <Text style={[styles.resendLink, !canResend && styles.disabledLink]}>
-                            {canResend ? "Kirim Ulang" : `Tunggu ${timer}s`}
+                        <Text style={styles.resendLink}>
+                            Kirim Ulang ({formatTime(timer)})
                         </Text>
                     </TouchableOpacity>
                 </View>
-            </View>
-        </View>
+
+                <TouchableOpacity
+                    style={[styles.verifyBtn]}
+                    onPress={handleVerify}
+                    disabled={loading}
+                >
+                    <Text style={styles.verifyBtnText}>Verifikasi</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.changeMethodBtn}
+                    onPress={() => showToast("Fitur sedang dikembangkan", "info")}
+                >
+                    <Icon name="shield-checkmark" size={18} color="#64748B" style={{ marginRight: 8 }} />
+                    <Text style={styles.changeMethodText}>Ubah Metode Verifikasi</Text>
+                </TouchableOpacity>
+
+                <View style={{ height: 40 }} />
+            </ScrollView>
+
+            {/* Bottom Stripe */}
+            <View style={styles.bottomStripe} />
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8FAFC',
-        padding: 24,
+        backgroundColor: '#FFFFFF',
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    },
+    headerBtn: {
+        width: 40,
+        height: 40,
+        alignItems: 'center',
         justifyContent: 'center',
     },
-    content: {
+    scrollContent: {
+        paddingHorizontal: 24,
+        paddingTop: 40,
         alignItems: 'center',
     },
-    iconContainer: {
-        width: 100,
-        height: 100,
-        backgroundColor: '#DBEAFE',
-        borderRadius: 50,
-        justifyContent: 'center',
+    logoWrapper: {
         alignItems: 'center',
         marginBottom: 24,
     },
+    logoBox: {
+        width: 70,
+        height: 70,
+        borderWidth: 1.5,
+        borderColor: '#FFB800',
+        borderRadius: 4,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+    },
     title: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: '#0F172A',
+        fontSize: 32,
+        fontWeight: "900",
+        textAlign: "center",
+        color: "#0F172A",
         marginBottom: 12,
     },
     subtitle: {
-        fontSize: 16,
-        color: '#64748B',
-        textAlign: 'center',
+        fontSize: 14,
+        textAlign: "center",
+        color: "#64748B",
+        lineHeight: 22,
+        fontWeight: '500',
+        marginBottom: 8,
+    },
+    progressContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
         marginBottom: 32,
-        lineHeight: 24,
+        paddingHorizontal: 40,
+        width: '100%',
+    },
+    stepDot: {
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+    },
+    activeDot: {
+        backgroundColor: '#FFB800',
+    },
+    stepLine: {
+        flex: 1,
+        height: 3,
+        marginHorizontal: 4,
+    },
+    activeLine: {
+        backgroundColor: '#FFB800',
     },
     emailText: {
-        fontWeight: '700',
+        fontSize: 14,
+        fontWeight: '900',
         color: '#0F172A',
+        textAlign: 'center',
+        marginBottom: 40,
     },
-    otpContainer: {
+    otpWrapper: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         width: '100%',
-        marginBottom: 10,
+        marginBottom: 40,
     },
     otpInput: {
-        width: 45,
-        height: 55,
+        width: (Dimensions.get('window').width - 100) / 6,
+        height: 64,
         borderWidth: 1,
         borderColor: '#E2E8F0',
-        borderRadius: 12,
-        backgroundColor: '#FFF',
+        borderRadius: 4,
         fontSize: 24,
-        fontWeight: '700',
+        fontWeight: '900',
         color: '#0F172A',
+        backgroundColor: '#FFFFFF',
+    },
+    otpInputActive: {
+        borderColor: '#FFB800',
+        borderWidth: 1.5,
+    },
+    otpInputError: {
+        borderColor: '#EF4444',
+        borderWidth: 1.5,
+        backgroundColor: '#FEF2F2',
+    },
+    errorText: {
+        color: '#EF4444',
+        fontSize: 13,
+        fontWeight: '700',
+        marginBottom: 20,
+        textAlign: 'center',
     },
     resendContainer: {
-        flexDirection: 'row',
-        marginTop: 24,
+        alignItems: 'center',
+        marginBottom: 40,
     },
-    resendText: {
+    resendInfo: {
+        fontSize: 14,
         color: '#64748B',
+        fontWeight: '500',
+        marginBottom: 8,
     },
     resendLink: {
-        fontWeight: '700',
-        color: '#2563EB',
+        fontSize: 15,
+        fontWeight: '900',
+        color: '#0F172A',
+        textDecorationLine: 'underline',
     },
-    disabledLink: {
-        color: '#94A3B8',
+    verifyBtn: {
+        width: '100%',
+        height: 56,
+        backgroundColor: '#FFB800',
+        borderRadius: 4,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 32,
+    },
+    verifyBtnText: {
+        fontSize: 16,
+        fontWeight: '900',
+        color: '#0F172A',
+    },
+    changeMethodBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+    },
+    changeMethodText: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: '#475569',
+    },
+    bottomStripe: {
+        height: 8,
+        backgroundColor: '#FFB800',
+        width: '100%',
     },
 });

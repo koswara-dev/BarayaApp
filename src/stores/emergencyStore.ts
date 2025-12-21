@@ -54,10 +54,10 @@ interface EmergencyStore {
 // Default tracking steps
 const getDefaultTrackingSteps = (currentStatus: EmergencyStatus): TrackingStep[] => {
     const statuses: { status: EmergencyStatus; label: string; description: string; icon: string }[] = [
-        { status: 'pending', label: 'Laporan Dikirim', description: 'Laporan Anda telah berhasil dikirim', icon: 'paper-plane' },
-        { status: 'diterima', label: 'Laporan Diterima', description: 'Tim terkait telah menerima laporan Anda', icon: 'checkmark-circle' },
-        { status: 'diproses', label: 'Sedang Ditangani', description: 'Tim sedang menuju lokasi Anda', icon: 'car' },
-        { status: 'selesai', label: 'Selesai', description: 'Laporan telah selesai ditangani', icon: 'shield-checkmark' },
+        { status: 'pending', label: 'Laporan Terkirim', description: 'Laporan Anda telah berhasil dikirim ke sistem.', icon: 'checkmark-circle' },
+        { status: 'diterima', label: 'Laporan Diterima', description: 'Laporan Anda telah masuk ke sistem pusat command center.', icon: 'business' },
+        { status: 'diproses', label: 'Sedang Diproses', description: 'Tim sedang melakukan verifikasi dan persiapan unit menuju lokasi.', icon: 'sync' },
+        { status: 'selesai', label: 'Penanganan Selesai', description: 'Laporan ditutup dan diarsipkan.', icon: 'flag' },
     ];
 
     const statusOrder = ['pending', 'diterima', 'diproses', 'selesai'];

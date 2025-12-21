@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Animated, TouchableOpacity, Platform } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import useToastStore from '../stores/toastStore';
 
@@ -89,24 +89,19 @@ export default function Toast() {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        top: 30,
-        left: 20,
-        right: 20,
+        top: 0,
+        left: 0,
+        right: 0,
         zIndex: 9999,
-        borderRadius: 12,
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 4,
-        },
-        shadowOpacity: 0.15,
-        shadowRadius: 12,
-        elevation: 8,
+        borderRadius: 0,
+        elevation: 0,
     },
     content: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
+        paddingHorizontal: 12,
+        paddingBottom: 8,
+        paddingTop: 8,
     },
     text: {
         color: '#FFF',

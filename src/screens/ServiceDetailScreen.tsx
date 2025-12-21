@@ -11,36 +11,42 @@ import {
     TextInput,
     StatusBar,
     Share,
-    Alert
+    Dimensions
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
+import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import { RootStackParamList } from '../navigation/types';
 import { Feedback, FeedbackResponse } from '../types/service';
 import api, { getImageUrl } from '../config/api';
 import useAuthStore from '../stores/authStore';
 import useToastStore from '../stores/toastStore';
-import Accordion from '../components/Accordion';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceDetail'>;
 
+const { width } = Dimensions.get('window');
+
 const REQUIREMENTS = [
-    { title: 'Minimal Usia 17 Tahun', desc: 'Atau sudah menikah' },
-    { title: 'Kartu Keluarga (KK)', desc: 'Fotokopi dan Asli untuk verifikasi' },
-    { title: 'Surat Pengantar RT/RW', desc: 'Tanda tangan basah dan stempel' },
+    { id: 1, title: 'Kartu Tanda Penduduk (KTP)', desc: 'Scan KTP pemohon yang masih berlaku.', icon: 'card-outline' },
+    { id: 2, title: 'Bukti Kepemilikan Tanah', desc: 'Sertifikat Hak Milik (SHM) atau bukti legal lainnya.', icon: 'map-outline' },
+    { id: 3, title: 'Gambar Rencana Bangunan', desc: 'Denah, tampak, potongan, dan detail arsitektur.', icon: 'business-outline' },
+    { id: 4, title: 'Bukti Lunas PBB', desc: 'Bukti pembayaran PBB tahun terakhir.', icon: 'document-text-outline' },
 ];
 
 const FLOW = [
-    { title: 'Pengajuan Online', desc: 'Isi formulir dan upload dokumen persyaratan melalui aplikasi ini.' },
-    { title: 'Verifikasi Data', desc: 'Petugas akan memverifikasi kelengkapan berkas Anda (1-2 hari).' },
-    { title: 'Rekam Biometrik', desc: 'Datang ke kantor Dinas/Kecamatan untuk foto dan sidik jari.' },
-    { title: 'Pengambilan KTP', desc: 'Notifikasi akan dikirim saat KTP siap diambil.' },
+    { step: 1, title: 'Pengajuan Permohonan', desc: 'Pemohon mengisi formulir dan upload dokumen via aplikasi.' },
+    { step: 2, title: 'Verifikasi Administrasi', desc: 'Pemeriksaan kelengkapan dokumen oleh petugas front office.' },
+    { step: 3, title: 'Peninjauan Lapangan', desc: 'Tim teknis melakukan survei lokasi bangunan.' },
+    { step: 4, title: 'Perhitungan Retribusi', desc: 'Penetapan besaran biaya retribusi daerah.' },
+    { step: 5, title: 'Pembayaran', desc: 'Pemohon melakukan pembayaran retribusi.' },
+    { step: 6, title: 'Penerbitan SK', desc: 'Surat Keputusan Izin diterbitkan.', isDone: true },
 ];
 
 export default function ServiceDetailScreen({ route, navigation }: Props) {
     const { service } = route.params;
     const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
     const [loading, setLoading] = useState(true);
+    const [expandedAbout, setExpandedAbout] = useState(false);
 
     // Feedback Form State
     const [myRating, setMyRating] = useState(0);
@@ -61,7 +67,6 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
                 const serviceFeedbacks = response.data.data.content.filter(
                     (f) => f.layananId === service.id
                 );
-                // Sort by newest first
                 setFeedbacks(serviceFeedbacks.sort((a, b) =>
                     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
                 ));
@@ -99,36 +104,20 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
                 userId: Number(user.id),
                 layananId: service.id
             };
-
-            // Using 'sub' is common for ID in JWT, but let's double check if we need to pass numeric ID. 
-            // In many JWT setups, 'sub' is the string ID. Ideally user object has an 'id' field if it was extracted differently.
-            // Let's rely on standard practice for now. If user.id exists (which isn't in standard User type usually without customization), use it. 
-            // Checking AuthStore implementation again... it uses `extractUserFromToken`.
-            // Let's assume standard payload. If it fails, we debug.
-            // Actually, based on previous prompt, User type is imported from types/auth. 
-
             await api.post('/feedback', payload);
-
             showToast("Ulasan berhasil dikirim", "success");
             setMyRating(0);
             setMyReview("");
-            fetchFeedbacks(); // Refresh list
+            fetchFeedbacks();
         } catch (error: any) {
             console.log("Post feedback error:", error);
             const errorMessage = error.response?.data?.message || "Gagal mengirim ulasan";
-
-            // Hide raw database errors from the user
-            if (errorMessage.includes("duplicate key") || errorMessage.includes("constraint")) {
-                showToast("Terjadi kesalahan sistem (Database Error). Harap hubungi admin.", "error");
-            } else {
-                showToast(errorMessage, "error");
-            }
+            showToast(errorMessage, "error");
         } finally {
             setSubmitting(false);
         }
     };
 
-    // Calculate Rating Statistics
     const stats = useMemo(() => {
         const total = feedbacks.length;
         const sum = feedbacks.reduce((acc, curr) => acc + curr.rating, 0);
@@ -153,7 +142,7 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
         }
     };
 
-    const renderStars = (rating: number, size = 14) => {
+    const renderStars = (rating: number, size = 14, color = "#FFC107") => {
         return (
             <View style={styles.starRow}>
                 {[1, 2, 3, 4, 5].map((star) => (
@@ -161,7 +150,7 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
                         key={star}
                         name={star <= rating ? "star" : "star-outline"}
                         size={size}
-                        color="#F59E0B"
+                        color={color}
                         style={{ marginRight: 2 }}
                     />
                 ))}
@@ -169,176 +158,177 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
         );
     };
 
-    const renderInputStars = () => {
-        return (
-            <View style={styles.starRow}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                    <TouchableOpacity key={star} onPress={() => setMyRating(star)}>
-                        <Icon
-                            name={star <= myRating ? "star" : "star-outline"}
-                            size={28}
-                            color="#F59E0B"
-                            style={{ marginRight: 8 }}
-                        />
-                    </TouchableOpacity>
-                ))}
-            </View>
-        );
-    };
-
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
-                    <Icon name="arrow-back" size={24} color="#334155" />
+            {/* Header with White Background */}
+            <View style={styles.headerWhite}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+                    <Icon name="arrow-back" size={24} color="#0F172A" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle} numberOfLines={1}>Detail Layanan</Text>
-                <TouchableOpacity onPress={handleShare} style={styles.iconBtn}>
-                    <Icon name="share-social-outline" size={24} color="#334155" />
+                <Text style={styles.headerTitleDark}>Detail Layanan</Text>
+                <TouchableOpacity onPress={handleShare} style={styles.headerBtn}>
+                    <Icon name="share-social-outline" size={24} color="#0F172A" />
                 </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-
-                {/* 1. Service Info Card */}
-                <View style={styles.card}>
-                    <View style={styles.cardHeader}>
-                        <View style={styles.serviceIconContainer}>
-                            <Icon name="grid" size={28} color="#2563EB" />
-                        </View>
-                        <View style={styles.cardHeaderText}>
-                            <Text style={styles.serviceTitle}>{service.nama}</Text>
-                            <View style={styles.ratingRow}>
-                                <Icon name="star" size={14} color="#F59E0B" />
-                                <Text style={styles.ratingValue}>{stats.avg}</Text>
-                                <Text style={styles.ratingCount}>({stats.total} Ulasan)</Text>
+                {/* Hero Section */}
+                <View style={styles.heroContainer}>
+                    <Image
+                        source={{ uri: service.image || 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&q=80&w=800' }}
+                        style={styles.heroImage}
+                    />
+                    <View style={styles.heroOverlay}>
+                        <View style={styles.heroBadgeRow}>
+                            <View style={styles.categoryBadge}>
+                                <Text style={styles.categoryBadgeText}>PERIZINAN</Text>
+                            </View>
+                            <View style={styles.onlineBadge}>
+                                <Text style={styles.onlineBadgeText}>Online</Text>
                             </View>
                         </View>
+                        <Text style={styles.heroTitle}>{service.nama}</Text>
                     </View>
+                </View>
 
-                    <Text style={styles.description}>{service.deskripsi}</Text>
+                {/* Responsible Dept */}
+                <View style={styles.deptCard}>
+                    <View style={styles.deptIconBox}>
+                        <MaterialIcon name="business" size={24} color="#64748B" />
+                    </View>
+                    <View style={styles.deptInfo}>
+                        <Text style={styles.deptLabel}>DINAS PENANGGUNG JAWAB</Text>
+                        <Text style={styles.deptName}>{service.dinasNama || 'Dinas Penanaman Modal dan PTSP'}</Text>
+                    </View>
+                </View>
 
-                    <View style={styles.divider} />
-
-                    <View style={styles.metaContainer}>
-                        <View style={styles.metaItem}>
+                {/* Info Grid */}
+                <View style={styles.infoGrid}>
+                    <View style={styles.infoBox}>
+                        <View style={styles.infoIconLabel}>
                             <Icon name="time-outline" size={16} color="#64748B" />
-                            <Text style={styles.metaLabel}>Estimasi: <Text style={styles.metaValue}>{service.estimasiWaktu} Hari</Text></Text>
+                            <Text style={styles.infoLabel}>ESTIMASI WAKTU</Text>
                         </View>
-                        <View style={styles.metaItem}>
-                            <Icon name="business-outline" size={16} color="#64748B" />
-                            <Text style={styles.metaLabel}>{service.dinasNama}</Text>
+                        <Text style={styles.infoValue}>{service.estimasiWaktu || '14'} Hari Kerja</Text>
+                    </View>
+                    <View style={styles.infoBox}>
+                        <View style={styles.infoIconLabel}>
+                            <Icon name="wallet-outline" size={16} color="#64748B" />
+                            <Text style={styles.infoLabel}>BIAYA</Text>
                         </View>
+                        <Text style={styles.infoValue}>Retribusi Daerah</Text>
+                    </View>
+                    <View style={[styles.infoBox, { borderBottomWidth: 0 }]}>
+                        <View style={styles.infoIconLabel}>
+                            <Icon name="call-outline" size={16} color="#64748B" />
+                            <Text style={styles.infoLabel}>TELEPON</Text>
+                        </View>
+                        <Text style={styles.infoValue}>{service.phoneNumber || '(0232) 871123'}</Text>
+                    </View>
+                    <View style={[styles.infoBox, { borderBottomWidth: 0 }]}>
+                        <View style={styles.infoIconLabel}>
+                            <Icon name="mail-outline" size={16} color="#64748B" />
+                            <Text style={styles.infoLabel}>EMAIL</Text>
+                        </View>
+                        <Text style={styles.infoValue} numberOfLines={1}>{service.email || 'dpmptsp@kuningan.go.id'}</Text>
                     </View>
                 </View>
 
-                {/* 2. Contact Card (Data-driven) */}
-                <View style={[styles.card, { paddingVertical: 12 }]}>
-                    <TouchableOpacity style={styles.contactRow} onPress={() => Linking.openURL(`tel:${service.phoneNumber}`)}>
-                        <View style={[styles.miniIcon, { backgroundColor: '#E0F2FE' }]}>
-                            <Icon name="call" size={18} color="#0284C7" />
-                        </View>
-                        <Text style={styles.contactText}>{service.phoneNumber}</Text>
-                        <Icon name="chevron-forward" size={18} color="#CBD5E1" />
-                    </TouchableOpacity>
-
-                    <View style={styles.dividerThin} />
-
-                    <TouchableOpacity style={styles.contactRow} onPress={() => Linking.openURL(`mailto:${service.email}`)}>
-                        <View style={[styles.miniIcon, { backgroundColor: '#F0FDF4' }]}>
-                            <Icon name="mail" size={18} color="#16A34A" />
-                        </View>
-                        <Text style={styles.contactText}>{service.email}</Text>
-                        <Icon name="chevron-forward" size={18} color="#CBD5E1" />
+                {/* About Section */}
+                <View style={styles.sectionContainer}>
+                    <Text style={styles.sectionTitle}>Tentang Layanan</Text>
+                    <Text
+                        style={styles.aboutText}
+                        numberOfLines={expandedAbout ? undefined : 3}
+                    >
+                        {service.deskripsi || 'Layanan permohonan persetujuan bangunan gedung (PBG) pengganti IMB untuk memastikan bangunan gedung memenuhi standar teknis keandalan bangunan gedung yang menjamin keselamatan, kesehatan, kenyamanan, dan kemudahan.'}
+                    </Text>
+                    <TouchableOpacity onPress={() => setExpandedAbout(!expandedAbout)} style={styles.readMoreBtn}>
+                        <Text style={styles.readMoreText}>{expandedAbout ? 'Tampilkan Lebih Sedikit' : 'Baca Selengkapnya'}</Text>
+                        <Icon name={expandedAbout ? "chevron-up" : "chevron-down"} size={16} color="#FFC107" />
                     </TouchableOpacity>
                 </View>
 
-                {/* Accordion Sections: Persyaratan, Alur, Biaya, Bantuan */}
-                <View style={{ marginBottom: 16 }}>
-                    <Accordion title="Persyaratan" children={
-                        <View>
-                            {REQUIREMENTS.map((item, index) => (
-                                <View key={index} style={styles.reqCard}>
-                                    <Icon name="checkmark-circle" size={22} color="#2563EB" style={{ marginTop: 2 }} />
-                                    <View style={{ marginLeft: 12, flex: 1 }}>
-                                        <Text style={styles.reqTitle}>{item.title}</Text>
-                                        <Text style={styles.reqDesc}>{item.desc}</Text>
-                                    </View>
-                                </View>
-                            ))}
+                {/* Process Alur */}
+                <View style={styles.sectionContainer}>
+                    <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.sectionTitle}>Alur Proses</Text>
+                        <View style={styles.stepsBadge}>
+                            <Text style={styles.stepsBadgeText}>6 Langkah</Text>
                         </View>
-                    } />
+                    </View>
 
-                    <Accordion title="Alur Pelayanan" children={
-                        <View style={{ paddingLeft: 8, paddingTop: 8 }}>
-                            {FLOW.map((item, index) => (
-                                <View key={index} style={styles.flowItem}>
-                                    {/* Line connector */}
-                                    {index !== FLOW.length - 1 && <View style={styles.flowLine} />}
-
-                                    <View style={styles.flowDot} />
-                                    <View style={styles.flowContent}>
-                                        <Text style={styles.flowTitle}>{item.title}</Text>
-                                        <Text style={styles.flowDesc}>{item.desc}</Text>
+                    <View style={styles.flowContainer}>
+                        {FLOW.map((item, index) => (
+                            <View key={item.step} style={styles.flowItem}>
+                                <View style={styles.flowLeft}>
+                                    <View style={[styles.flowDot, item.isDone && styles.flowDotDone]}>
+                                        {item.isDone ? <Icon name="checkmark" size={12} color="#FFF" /> : <Text style={styles.flowStepText}>{item.step}</Text>}
                                     </View>
+                                    {index < FLOW.length - 1 && <View style={styles.flowLine} />}
                                 </View>
-                            ))}
-                        </View>
-                    } />
-
-                    <Accordion title="Biaya" children={
-                        <View>
-                            <View style={styles.costItem}>
-                                <Text style={styles.costLabel}>Biaya Administrasi</Text>
-                                <View style={styles.costBadge}>
-                                    <Text style={styles.costText}>Gratis</Text>
+                                <View style={styles.flowRight}>
+                                    <Text style={styles.flowTitle}>{item.title}</Text>
+                                    <Text style={styles.flowDesc}>{item.desc}</Text>
                                 </View>
                             </View>
-                            <View style={[styles.dividerThin, { marginLeft: 0 }]} />
-                            <View style={styles.costItem}>
-                                <Text style={styles.costLabel}>Biaya Retribusi</Text>
-                                <View style={styles.costBadge}>
-                                    <Text style={styles.costText}>Gratis</Text>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Documents */}
+                <View style={styles.sectionContainer}>
+                    <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.sectionTitle}>Persyaratan Dokumen</Text>
+                        <View style={styles.wajibBadge}>
+                            <Text style={styles.wajibBadgeText}>WAJIB</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.docsList}>
+                        {REQUIREMENTS.map((doc) => (
+                            <View key={doc.id} style={styles.docCard}>
+                                <View style={styles.docIconBox}>
+                                    <Icon name={doc.icon} size={20} color="#FFC107" />
+                                </View>
+                                <View style={styles.docInfo}>
+                                    <Text style={styles.docTitle}>{doc.title}</Text>
+                                    <Text style={styles.docDesc}>{doc.desc}</Text>
                                 </View>
                             </View>
-                        </View>
-                    } />
+                        ))}
+                    </View>
 
-                    <Accordion title="Bantuan" children={
-                        <View>
-                            <TouchableOpacity style={styles.faqItem}>
-                                <Text style={styles.faqQuestion}>Apakah bisa diwakilkan?</Text>
-                                <Icon name="chevron-down" size={16} color="#64748B" />
-                            </TouchableOpacity>
-                        </View>
-                    } />
+                    <TouchableOpacity style={styles.seeAllDocsBtn}>
+                        <Text style={styles.seeAllDocsText}>Lihat Semua Persyaratan</Text>
+                        <Icon name="chevron-down" size={18} color="#64748B" />
+                    </TouchableOpacity>
                 </View>
 
-                {/* 3. Review Summary */}
-                <View style={[styles.sectionHeader, { marginTop: 8 }]}>
-                    <Text style={styles.sectionTitle}>Ulasan Pengguna</Text>
-                </View>
+                {/* Reviews & Ratings */}
+                <View style={styles.sectionContainer}>
+                    <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.sectionTitle}>Ulasan & Rating</Text>
+                        <TouchableOpacity onPress={fetchFeedbacks}>
+                            <Text style={styles.seeAllLink}>Lihat Semua</Text>
+                        </TouchableOpacity>
+                    </View>
 
-                <View style={styles.card}>
-                    <View style={styles.statsContainer}>
-                        {/* Left: Big Rating */}
-                        <View style={styles.bigRatingContainer}>
-                            <Text style={styles.bigRatingText}>{stats.avg}</Text>
-                            {renderStars(Number(stats.avg))}
-                            <Text style={styles.fromText}>dari {stats.total} ulasan</Text>
+                    <View style={styles.ratingSummary}>
+                        <View style={styles.ratingLeft}>
+                            <Text style={styles.avgRatingText}>{stats.avg}</Text>
+                            {renderStars(Number(stats.avg), 20)}
+                            <Text style={styles.totalUlasanText}>{stats.total} Ulasan</Text>
                         </View>
-
-                        {/* Right: Progress Bars */}
-                        <View style={styles.barsContainer}>
+                        <View style={styles.ratingRight}>
                             {[5, 4, 3, 2, 1].map((num) => {
                                 const count = stats.counts[num as 1 | 2 | 3 | 4 | 5] || 0;
                                 const percentage = stats.total > 0 ? (count / stats.total) * 100 : 0;
                                 return (
                                     <View key={num} style={styles.barRow}>
-                                        <Text style={styles.barLabel}>{num}</Text>
+                                        <Text style={styles.barNum}>{num}</Text>
                                         <View style={styles.barTrack}>
                                             <View style={[styles.barFill, { width: `${percentage}%` }]} />
                                         </View>
@@ -347,74 +337,80 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
                             })}
                         </View>
                     </View>
-                </View>
 
-                {/* 4. Write Review Form */}
-                <View style={styles.card}>
-                    <Text style={styles.cardTitle}>Tulis Ulasan Anda</Text>
-                    <View style={{ marginVertical: 12 }}>
-                        {renderInputStars()}
-                    </View>
-                    <View style={styles.inputContainer}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Ceritakan pengalaman Anda..."
-                            placeholderTextColor="#94A3B8"
-                            multiline
-                            value={myReview}
-                            onChangeText={setMyReview}
-                        />
-                        <TouchableOpacity
-                            style={[styles.sendBtn, submitting && { backgroundColor: '#94A3B8' }]}
-                            onPress={handlePostFeedback}
-                            disabled={submitting}
-                        >
-                            {submitting ? (
-                                <ActivityIndicator size="small" color="#FFF" />
-                            ) : (
-                                <Icon name="send" size={16} color="#FFF" />
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                    <View style={styles.userExperienceBox}>
+                        <Text style={styles.expTitle}>Bagaimana pengalaman Anda?</Text>
+                        <View style={styles.expStarsRow}>
+                            {[1, 2, 3, 4, 5].map((star) => (
+                                <TouchableOpacity key={star} onPress={() => setMyRating(star)}>
+                                    <Icon
+                                        name={star <= myRating ? "star" : "star-outline"}
+                                        size={30}
+                                        color={star <= myRating ? "#FFC107" : "#CBD5E1"}
+                                        style={{ marginHorizontal: 4 }}
+                                    />
+                                </TouchableOpacity>
+                            ))}
+                        </View>
 
-                {/* 5. Review List */}
-                {loading ? (
-                    <ActivityIndicator size="small" color="#2563EB" />
-                ) : (
-                    feedbacks.map((item) => (
-                        <View key={item.id} style={styles.card}>
-                            <View style={styles.reviewHeader}>
-                                <Image
-                                    source={{ uri: getImageUrl(item.urlFoto) || `https://ui-avatars.com/api/?name=${item.userName}&background=random` }}
-                                    style={styles.avatar}
-                                />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.reviewerName}>{item.userName}</Text>
-                                    <View style={styles.timeRow}>
-                                        <Text style={styles.timeText}>
-                                            {new Date(item.createdAt).toLocaleDateString('id-ID', {
-                                                day: 'numeric', month: 'long', year: 'numeric'
-                                            })}
-                                        </Text>
+                        <View style={styles.reviewFormContainer}>
+                            <TextInput
+                                style={styles.reviewInput}
+                                placeholder="Tuliskan ulasan Anda mengenai layanan ini..."
+                                placeholderTextColor="#94A3B8"
+                                multiline
+                                numberOfLines={4}
+                                value={myReview}
+                                onChangeText={setMyReview}
+                                textAlignVertical="top"
+                            />
+                            <TouchableOpacity
+                                style={[styles.tulisUlasanBtn, (submitting || !myReview.trim() || myRating === 0) && styles.btnDisabled]}
+                                onPress={handlePostFeedback}
+                                disabled={submitting || !myReview.trim() || myRating === 0}
+                            >
+                                {submitting ? (
+                                    <ActivityIndicator size="small" color="#0F172A" />
+                                ) : (
+                                    <Text style={styles.tulisUlasanText}>Kirim Ulasan</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    {/* Feedback List */}
+                    {loading ? (
+                        <ActivityIndicator color="#FFC107" style={{ marginVertical: 20 }} />
+                    ) : (
+                        feedbacks.slice(0, 3).map((item) => (
+                            <View key={item.id} style={styles.reviewItem}>
+                                <View style={styles.reviewUserRow}>
+                                    <View style={styles.userAvatar}>
+                                        <Text style={styles.userAvatarText}>{item.userName?.substring(0, 2).toUpperCase()}</Text>
+                                    </View>
+                                    <View style={styles.userInfo}>
+                                        <Text style={styles.userNameText}>{item.userName}</Text>
+                                        <Text style={styles.reviewTimeText}>2 hari lalu</Text>
                                     </View>
                                 </View>
-                                {renderStars(item.rating, 12)}
+                                {renderStars(item.rating, 16)}
+                                <Text style={styles.reviewMessageText}>{item.ulasan}</Text>
                             </View>
+                        ))
+                    )}
+                </View>
 
-                            <Text style={styles.reviewContent}>{item.ulasan}</Text>
-                        </View>
-                    ))
-                )}
-
-                <View style={{ height: 100 }} />
+                <View style={{ height: 120 }} />
             </ScrollView>
 
             {/* Bottom Button */}
-            <View style={styles.bottomContainer}>
-                <TouchableOpacity style={styles.mainBtn} onPress={() => showToast("Formulir permohonan belum tersedia saat ini", "info")}>
-                    <Icon name="document-text" size={20} color="#FFF" style={{ marginRight: 8 }} />
-                    <Text style={styles.mainBtnText}>Ajukan Permohonan</Text>
+            <View style={styles.footer}>
+                <TouchableOpacity
+                    style={styles.applyBtn}
+                    onPress={() => showToast("Layanan ini dapat diajukan secara langsung di kantor dinas terkait.", "info")}
+                >
+                    <Icon name="document-text" size={20} color="#0F172A" style={{ marginRight: 10 }} />
+                    <Text style={styles.applyBtnText}>Ajukan Permohonan</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -424,188 +420,358 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F1F5F9', // slightly darker gray background
+        backgroundColor: '#FFFFFF',
     },
-    header: {
+    headerWhite: {
+        backgroundColor: '#FFFFFF',
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 10 : 40,
         paddingHorizontal: 16,
-        paddingVertical: 14,
-        backgroundColor: '#FFF',
+        paddingBottom: 16,
+        justifyContent: 'space-between',
         borderBottomWidth: 1,
-        borderBottomColor: '#E2E8F0',
+        borderBottomColor: '#F1F5F9',
+        zIndex: 100,
     },
-    headerTitle: {
+    headerTitleDark: {
         fontSize: 16,
         fontWeight: '700',
         color: '#0F172A',
-        flex: 1,
-        textAlign: 'center',
-        marginHorizontal: 10,
     },
-    iconBtn: {
-        padding: 4,
+    headerBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     scrollContent: {
-        padding: 16,
+        paddingBottom: 0,
     },
-    /* Card Generic */
-    card: {
+    heroContainer: {
+        width: width,
+        height: 280,
         backgroundColor: '#FFF',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 16,
-        elevation: 1, // Soft shadow for android
+        position: 'relative',
+        // Shadow at the bottom
+        elevation: 10,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
     },
-    /* Service Info Section */
-    cardHeader: {
+    heroImage: {
+        width: '100%',
+        height: '100%',
+    },
+    heroOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        padding: 24,
+        backgroundColor: 'rgba(15, 23, 42, 0.45)',
+        justifyContent: 'flex-end',
+    },
+    heroBadgeRow: {
         flexDirection: 'row',
-        marginBottom: 16,
+        marginBottom: 12,
     },
-    serviceIconContainer: {
-        width: 56,
-        height: 56,
-        borderRadius: 12,
-        backgroundColor: '#EFF6FF',
+    categoryBadge: {
+        backgroundColor: '#FFC107',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 4,
+        marginRight: 8,
+    },
+    categoryBadgeText: {
+        color: '#0F172A',
+        fontSize: 10,
+        fontWeight: '800',
+    },
+    onlineBadge: {
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 4,
+        borderWidth: 1,
+        borderColor: '#FFF',
+    },
+    onlineBadgeText: {
+        color: '#FFF',
+        fontSize: 10,
+        fontWeight: '700',
+    },
+    heroTitle: {
+        color: '#FFF',
+        fontSize: 22,
+        fontWeight: '800',
+        lineHeight: 30,
+        textShadowColor: 'rgba(0, 0, 0, 0.4)',
+        textShadowOffset: { width: 0, height: 2 },
+        textShadowRadius: 4,
+    },
+    deptCard: {
+        flexDirection: 'row',
+        padding: 20,
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    deptIconBox: {
+        width: 44,
+        height: 44,
+        borderRadius: 8,
+        backgroundColor: '#F1F5F9',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 16,
     },
-    cardHeaderText: {
+    deptInfo: {
         flex: 1,
-        justifyContent: 'center',
     },
-    serviceTitle: {
-        fontSize: 18,
+    deptLabel: {
+        fontSize: 10,
+        color: '#94A3B8',
         fontWeight: '700',
-        color: '#0F172A',
-        marginBottom: 4,
+        marginBottom: 2,
     },
-    ratingRow: {
+    deptName: {
+        fontSize: 14,
+        color: '#0F172A',
+        fontWeight: '700',
+    },
+    infoGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    infoBox: {
+        width: '50%',
+        padding: 20,
+        borderRightWidth: 1,
+        borderBottomWidth: 1,
+        borderColor: '#F1F5F9',
+    },
+    infoIconLabel: {
         flexDirection: 'row',
         alignItems: 'center',
+        marginBottom: 6,
     },
-    ratingValue: {
-        fontSize: 14,
-        fontWeight: '600',
+    infoLabel: {
+        fontSize: 10,
+        color: '#94A3B8',
+        fontWeight: '700',
+        marginLeft: 6,
+    },
+    infoValue: {
+        fontSize: 15,
         color: '#0F172A',
-        marginLeft: 4,
-        marginRight: 4,
+        fontWeight: '700',
     },
-    ratingCount: {
-        fontSize: 12,
-        color: '#64748B',
+    sectionContainer: {
+        padding: 24,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
     },
-    description: {
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#0F172A',
+    },
+    aboutText: {
         fontSize: 14,
         color: '#475569',
         lineHeight: 22,
-        marginBottom: 16,
+        marginBottom: 12,
     },
-    divider: {
-        height: 1,
-        backgroundColor: '#F1F5F9',
-        marginBottom: 16,
-    },
-    dividerThin: {
-        height: 1,
-        backgroundColor: '#F1F5F9',
-        marginVertical: 4,
-        marginLeft: 50, // Indent for list look
-    },
-    metaContainer: {
-        gap: 8,
-    },
-    metaItem: {
+    readMoreBtn: {
         flexDirection: 'row',
         alignItems: 'center',
     },
-    metaLabel: {
-        fontSize: 13,
+    readMoreText: {
+        fontSize: 14,
+        color: '#FFC107',
+        fontWeight: '700',
+        marginRight: 4,
+    },
+    stepsBadge: {
+        backgroundColor: '#F1F5F9',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    stepsBadgeText: {
+        fontSize: 11,
         color: '#64748B',
-        marginLeft: 8,
+        fontWeight: '700',
     },
-    metaValue: {
-        fontWeight: '600',
-        color: '#334155',
+    flowContainer: {
+        marginTop: 10,
     },
-    /* Contact Rows */
-    contactRow: {
+    flowItem: {
         flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 8,
+        minHeight: 70,
     },
-    miniIcon: {
-        width: 32,
-        height: 32,
+    flowLeft: {
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    flowDot: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: '#E2E8F0',
+        backgroundColor: '#FFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1,
+    },
+    flowDotDone: {
+        backgroundColor: '#10B981',
+        borderColor: '#10B981',
+    },
+    flowStepText: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#64748B',
+    },
+    flowLine: {
+        flex: 1,
+        width: 2,
+        backgroundColor: '#E2E8F0',
+        marginVertical: 4,
+    },
+    flowRight: {
+        flex: 1,
+        paddingBottom: 24,
+    },
+    flowTitle: {
+        fontSize: 15,
+        fontWeight: '800',
+        color: '#0F172A',
+        marginBottom: 4,
+    },
+    flowDesc: {
+        fontSize: 12,
+        color: '#64748B',
+        lineHeight: 18,
+    },
+    wajibBadge: {
+        backgroundColor: '#0F172A',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 4,
+    },
+    wajibBadgeText: {
+        color: '#FFF',
+        fontSize: 10,
+        fontWeight: '800',
+    },
+    docsList: {
+        marginTop: 0,
+    },
+    docCard: {
+        flexDirection: 'row',
+        backgroundColor: '#FFF',
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        marginBottom: 12,
+        alignItems: 'center',
+    },
+    docIconBox: {
+        width: 40,
+        height: 40,
+        backgroundColor: '#FFF9E6',
         borderRadius: 8,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 12,
+        marginRight: 16,
     },
-    contactText: {
+    docInfo: {
         flex: 1,
+    },
+    docTitle: {
         fontSize: 14,
-        color: '#334155',
-        fontWeight: '500',
-    },
-    /* Section Header */
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#0F172A',
+        marginBottom: 2,
     },
-    linkText: {
-        fontSize: 14,
-        color: '#2563EB',
-        fontWeight: '500',
+    docDesc: {
+        fontSize: 12,
+        color: '#94A3B8',
     },
-    /* Statistics */
-    statsContainer: {
+    seeAllDocsBtn: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        backgroundColor: '#F8FAFC',
+        borderRadius: 12,
+        marginTop: 8,
     },
-    bigRatingContainer: {
+    seeAllDocsText: {
+        fontSize: 14,
+        color: '#64748B',
+        fontWeight: '700',
+        marginRight: 8,
+    },
+    seeAllLink: {
+        fontSize: 14,
+        color: '#FFC107',
+        fontWeight: '700',
+    },
+    ratingSummary: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 32,
+    },
+    ratingLeft: {
         alignItems: 'center',
         paddingRight: 24,
         borderRightWidth: 1,
         borderRightColor: '#F1F5F9',
-        marginRight: 16,
+        marginRight: 24,
     },
-    bigRatingText: {
+    avgRatingText: {
         fontSize: 42,
-        fontWeight: '700',
+        fontWeight: '800',
         color: '#0F172A',
+        marginBottom: 4,
     },
-    fromText: {
+    totalUlasanText: {
         fontSize: 12,
-        color: '#64748B',
-        marginTop: 4,
+        color: '#94A3B8',
+        marginTop: 8,
     },
-    barsContainer: {
+    ratingRight: {
         flex: 1,
     },
     barRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 6,
+        marginBottom: 8,
     },
-    barLabel: {
+    barNum: {
         width: 12,
         fontSize: 12,
-        color: '#64748B',
-        marginRight: 8,
+        color: '#94A3B8',
+        fontWeight: '700',
+        marginRight: 10,
     },
     barTrack: {
         flex: 1,
@@ -616,193 +782,131 @@ const styles = StyleSheet.create({
     },
     barFill: {
         height: '100%',
-        backgroundColor: '#2563EB',
+        backgroundColor: '#FFC107',
         borderRadius: 3,
     },
-    /* Write Review */
-    cardTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#0F172A',
-    },
-    inputContainer: {
-        flexDirection: 'row',
+    userExperienceBox: {
         backgroundColor: '#F8FAFC',
+        padding: 24,
+        borderRadius: 16,
+        alignItems: 'center',
+        marginBottom: 32,
+    },
+    expTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#0F172A',
+        marginBottom: 16,
+    },
+    expStarsRow: {
+        flexDirection: 'row',
+        marginBottom: 20,
+    },
+    tulisUlasanBtn: {
+        width: '100%',
+        height: 48,
         borderRadius: 12,
-        padding: 4,
-        alignItems: 'flex-end',
         borderWidth: 1,
         borderColor: '#E2E8F0',
-    },
-    input: {
-        flex: 1,
-        minHeight: 40,
-        maxHeight: 100,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        fontSize: 14,
-        color: '#0F172A',
-    },
-    sendBtn: {
-        backgroundColor: '#2563EB',
-        width: 36,
-        height: 36,
-        borderRadius: 10,
+        backgroundColor: '#FFF',
         alignItems: 'center',
         justifyContent: 'center',
-        margin: 4,
     },
-    /* Reviews List */
-    reviewHeader: {
+    tulisUlasanText: {
+        fontSize: 14,
+        color: '#0F172A',
+        fontWeight: '700',
+    },
+    reviewFormContainer: {
+        width: '100%',
+    },
+    reviewInput: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        padding: 16,
+        fontSize: 14,
+        color: '#0F172A',
+        minHeight: 100,
+        marginBottom: 16,
+    },
+    btnDisabled: {
+        backgroundColor: '#F1F5F9',
+        borderColor: '#F1F5F9',
+        opacity: 0.6,
+    },
+    reviewItem: {
+        marginBottom: 24,
+    },
+    reviewUserRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 12,
     },
-    avatar: {
+    userAvatar: {
         width: 40,
         height: 40,
         borderRadius: 20,
+        backgroundColor: '#DBEAFE',
+        alignItems: 'center',
+        justifyContent: 'center',
         marginRight: 12,
-        backgroundColor: '#CBD5E1',
     },
-    reviewerName: {
+    userAvatarText: {
         fontSize: 14,
-        fontWeight: '600',
+        fontWeight: '800',
+        color: '#3B82F6',
+    },
+    userInfo: {
+        flex: 1,
+    },
+    userNameText: {
+        fontSize: 15,
+        fontWeight: '800',
         color: '#0F172A',
     },
-    timeRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    timeText: {
+    reviewTimeText: {
         fontSize: 12,
         color: '#94A3B8',
-        marginTop: 2,
     },
     starRow: {
         flexDirection: 'row',
+        marginVertical: 4,
     },
-    reviewContent: {
+    reviewMessageText: {
         fontSize: 14,
         color: '#475569',
         lineHeight: 22,
+        marginTop: 8,
     },
-    /* Bottom Button */
-    bottomContainer: {
+    footer: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
+        padding: 24,
+        paddingBottom: 32,
         backgroundColor: '#FFF',
-        padding: 16,
-        paddingBottom: 24,
         borderTopWidth: 1,
-        borderTopColor: '#E2E8F0',
+        borderTopColor: '#F1F5F9',
     },
-    mainBtn: {
-        backgroundColor: '#2563EB',
+    applyBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 14,
+        backgroundColor: '#FFC107',
+        height: 56,
         borderRadius: 12,
+        shadowColor: '#FFC107',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
     },
-    mainBtnText: {
+    applyBtnText: {
         fontSize: 16,
-        fontWeight: '600',
-        color: '#FFF',
-    },
-    /* Requirements Section */
-    reqCard: {
-        flexDirection: 'row',
-        backgroundColor: '#F8FAFC',
-        padding: 12,
-        borderRadius: 12,
-        marginBottom: 10,
-        borderWidth: 1,
-        borderColor: '#F1F5F9',
-    },
-    reqTitle: {
-        fontSize: 14,
-        fontWeight: '600',
         color: '#0F172A',
-        marginBottom: 2,
-    },
-    reqDesc: {
-        fontSize: 12,
-        color: '#64748B',
-    },
-    /* Flow Section */
-    flowItem: {
-        flexDirection: 'row',
-        marginBottom: 20, // Space for line
-        position: 'relative',
-    },
-    flowLine: {
-        position: 'absolute',
-        left: 5, // Center of dot (10px / 2)
-        top: 14, // Roughly below the dot
-        bottom: -20, // Extend to next
-        width: 1,
-        backgroundColor: '#CBD5E1',
-        zIndex: -1,
-    },
-    flowDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: '#2563EB',
-        marginTop: 6,
-        marginRight: 12,
-    },
-    flowContent: {
-        flex: 1,
-    },
-    flowTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#0F172A',
-        marginBottom: 4,
-    },
-    flowDesc: {
-        fontSize: 12,
-        color: '#64748B',
-        lineHeight: 18,
-    },
-    /* Cost Section */
-    costItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 8,
-    },
-    costLabel: {
-        fontSize: 14,
-        color: '#334155',
-        fontWeight: '500',
-    },
-    costBadge: {
-        backgroundColor: '#F1F5F9',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 20,
-    },
-    costText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#0F172A',
-    },
-    /* FAQ Section */
-    faqItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 8,
-    },
-    faqQuestion: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: '#0F172A',
-        flex: 1,
+        fontWeight: '800',
     },
 });

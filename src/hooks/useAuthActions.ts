@@ -14,7 +14,7 @@ export const useAuthActions = () => {
      * Login with email and password
      * Makes API call and updates auth state on success
      */
-    const login = async (credentials: LoginCredentials): Promise<LoginResult> => {
+    const login = async (credentials: LoginCredentials, autoSignIn = true): Promise<LoginResult> => {
         try {
             // 1. API Call: Send credentials to the server
             const response = await api.post("/auth/login", credentials);
@@ -30,9 +30,11 @@ export const useAuthActions = () => {
             }
 
             // 3. State Update: Use the token to update the Zustand store
-            signIn(token);
+            if (autoSignIn) {
+                signIn(token);
+            }
 
-            return { success: true, data: response.data?.data };
+            return { success: true, data: { ...response.data?.data, token } };
         } catch (error: any) {
             // Log for debugging (using console.log instead of console.error to avoid LogBox popup)
             // console.log("Login failed:", error.response?.data || error.message);

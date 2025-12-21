@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -14,6 +14,8 @@ import PrimaryButton from '../components/PrimaryButton';
 import useToastStore from '../stores/toastStore';
 import api from '../config/api';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import LoadingOverlay from '../components/LoadingOverlay';
+import CustomAlert from '../components/CustomAlert';
 
 export default function ForgotPasswordScreen({ navigation }: any) {
     const showToast = useToastStore((state) => state.showToast);
@@ -26,8 +28,20 @@ export default function ForgotPasswordScreen({ navigation }: any) {
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [newPass, setNewPass] = useState({ password: '', confirm: '' });
     const [showPass, setShowPass] = useState(false);
-
+    const [showConfirmPass, setShowConfirmPass] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [otpError, setOtpError] = useState('');
+    const [showAlert, setShowAlert] = useState(false);
+
+    const otpRefs = useRef<Array<TextInput | null>>([]);
+
+    // Auto submit when all 6 digits filled
+    useEffect(() => {
+        const otpCode = otp.join('');
+        if (otpCode.length === 6 && step === 2) {
+            handleVerifyOtp();
+        }
+    }, [otp, step]);
 
     // Step 1: Request Reset (Send Email)
     const handleRequestReset = async () => {
@@ -70,6 +84,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
         }
 
         setLoading(true);
+        setOtpError('');
         try {
             // NOTE: The endpoint for verifying RESET OTP wasn't explicitly provided in the last prompt.
             // Often it's the same /auth/verify-otp or a specific one.
@@ -84,7 +99,7 @@ export default function ForgotPasswordScreen({ navigation }: any) {
             // If successful
             setStep(3);
         } catch (error) {
-            showToast("Kode OTP tidak valid", "error");
+            setOtpError("Kode OTP tidak valid");
         } finally {
             setLoading(false);
         }
@@ -107,12 +122,8 @@ export default function ForgotPasswordScreen({ navigation }: any) {
             // Simulating API call
             await new Promise<void>(resolve => setTimeout(resolve, 1500));
 
-            showToast("Password berhasil diubah, silakan login", "success");
-
-            navigation.reset({
-                index: 0,
-                routes: [{ name: 'Login' }],
-            });
+            setLoading(false);
+            setShowAlert(true);
         } catch (error) {
             showToast("Gagal mengubah password", "error");
         } finally {
@@ -121,10 +132,35 @@ export default function ForgotPasswordScreen({ navigation }: any) {
     };
 
     const handleOtpChange = (val: string, index: number) => {
+        if (val && !/^\d+$/.test(val)) return;
+
         const newOtp = [...otp];
         newOtp[index] = val;
         setOtp(newOtp);
-        // Logic to auto focus next input would go here (using refs)
+        if (otpError) setOtpError('');
+
+        if (val.length === 1 && index < 5) {
+            setTimeout(() => {
+                otpRefs.current[index + 1]?.focus();
+            }, 10);
+        }
+    };
+
+    const handleKeyPress = ({ nativeEvent: { key } }: any, index: number) => {
+        if (key === 'Backspace') {
+            if (otp[index] === '' && index > 0) {
+                const newOtp = [...otp];
+                newOtp[index - 1] = '';
+                setOtp(newOtp);
+                setTimeout(() => {
+                    otpRefs.current[index - 1]?.focus();
+                }, 10);
+            } else if (otp[index] !== '') {
+                const newOtp = [...otp];
+                newOtp[index] = '';
+                setOtp(newOtp);
+            }
+        }
     };
 
     // Render Steps
@@ -150,7 +186,6 @@ export default function ForgotPasswordScreen({ navigation }: any) {
             <PrimaryButton
                 title="Kirim Kode"
                 onPress={handleRequestReset}
-                loading={loading}
                 style={{ marginTop: 24 }}
             />
         </View>
@@ -169,9 +204,15 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                 {otp.map((digit, index) => (
                     <TextInput
                         key={index}
-                        style={styles.otpInput}
+                        ref={(ref) => { otpRefs.current[index] = ref; }}
+                        style={[
+                            styles.otpInput,
+                            digit ? styles.otpInputActive : {},
+                            otpError ? styles.otpInputError : {}
+                        ]}
                         value={digit}
                         onChangeText={(val) => handleOtpChange(val, index)}
+                        onKeyPress={(e) => handleKeyPress(e, index)}
                         keyboardType="number-pad"
                         maxLength={1}
                         textAlign="center"
@@ -179,10 +220,13 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                 ))}
             </View>
 
+            {otpError ? (
+                <Text style={styles.errorText}>{otpError}</Text>
+            ) : null}
+
             <PrimaryButton
                 title="Verifikasi"
                 onPress={handleVerifyOtp}
-                loading={loading}
                 style={{ marginTop: 32 }}
             />
 
@@ -216,15 +260,16 @@ export default function ForgotPasswordScreen({ navigation }: any) {
                 label="Konfirmasi Password"
                 icon="lock-check"
                 placeholder="Ulangi password baru"
-                secureTextEntry={!showPass}
+                secureTextEntry={!showConfirmPass}
                 value={newPass.confirm}
                 onChangeText={(t) => setNewPass({ ...newPass, confirm: t })}
+                rightIcon={showConfirmPass ? "eye" : "eye-off"}
+                onRightIconPress={() => setShowConfirmPass(!showConfirmPass)}
             />
 
             <PrimaryButton
                 title="Simpan Password"
                 onPress={handleResetPassword}
-                loading={loading}
                 style={{ marginTop: 24 }}
             />
         </View>
@@ -232,6 +277,19 @@ export default function ForgotPasswordScreen({ navigation }: any) {
 
     return (
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
+            <LoadingOverlay visible={loading} />
+            <CustomAlert
+                visible={showAlert}
+                title="Password Diupdate"
+                message="Kata sandi Anda telah berhasil diubah. Silakan masuk kembali dengan kata sandi baru Anda."
+                onClose={() => {
+                    setShowAlert(false);
+                    navigation.reset({
+                        index: 0,
+                        routes: [{ name: 'Login' }],
+                    });
+                }}
+            />
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <TouchableOpacity onPress={() => step === 1 ? navigation.goBack() : setStep(step - 1)} style={styles.backButton}>
                     <Icon name="arrow-left" size={24} color="#1E293B" />
@@ -326,6 +384,22 @@ const styles = StyleSheet.create({
         fontSize: 24,
         fontWeight: '700',
         color: '#0F172A',
+        textAlign: 'center',
+    },
+    otpInputActive: {
+        borderColor: '#2563EB',
+        borderWidth: 1.5,
+    },
+    otpInputError: {
+        borderColor: '#EF4444',
+        borderWidth: 1.5,
+        backgroundColor: '#FEF2F2',
+    },
+    errorText: {
+        color: '#EF4444',
+        fontSize: 13,
+        fontWeight: '700',
+        marginBottom: 10,
         textAlign: 'center',
     },
     resendLinkContainer: {

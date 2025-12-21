@@ -6,6 +6,7 @@ export type RootStackParamList = {
     Login: undefined;
     Register: undefined;
     Main: undefined;
+    AdminMain: undefined;
     ServiceDetail: { service: any };
     Notifikasi: undefined;
     MapEmergency: { onLocationSelect: (loc: any) => void };
@@ -13,11 +14,14 @@ export type RootStackParamList = {
     OtpVerification: { email: string };
     RegisterForm: { formData: any };
     ForgotPassword: undefined;
+    ServiceHistory: undefined;
+    ComplaintHistory: undefined;
 };
 
 export type BottomTabParamList = {
     Beranda: undefined;
     Layanan: undefined;
     Darurat: undefined;
+    Berita: undefined;
     Profil: undefined;
 };
