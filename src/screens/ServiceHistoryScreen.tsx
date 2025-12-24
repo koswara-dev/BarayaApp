@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -8,63 +8,132 @@ import {
     TextInput,
     Platform,
     StatusBar,
-    ActivityIndicator,
     RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-import useLayananStore from '../stores/layananStore';
+
+interface HistoryItem {
+    id: string;
+    title: string;
+    description: string;
+    status: 'DIPROSES' | 'DIAJUKAN' | 'SELESAI' | 'DITOLAK';
+    date: string;
+    reqId: string;
+    icon: string;
+    iconBg: string;
+    iconColor: string;
+    meta?: string;
+    metaIcon?: string;
+    metaColor?: string;
+}
+
+const DUMMY_DATA: HistoryItem[] = [
+    {
+        id: '1',
+        title: 'Pembuatan E-KTP Baru',
+        description: 'Permohonan cetak ulang KTP karena patah.',
+        status: 'DIPROSES',
+        date: '12 Okt 2023',
+        reqId: '#REQ-9921',
+        icon: 'id-card-outline',
+        iconBg: '#EFF6FF',
+        iconColor: '#3B82F6',
+    },
+    {
+        id: '2',
+        title: 'Pecah Kartu Keluarga',
+        description: 'Pemisahan KK untuk anggota keluarga baru.',
+        status: 'DIAJUKAN',
+        date: '10 Okt 2023',
+        reqId: '#REQ-8750',
+        icon: 'people-outline',
+        iconBg: '#FFFBEB',
+        iconColor: '#D97706',
+    },
+    {
+        id: '3',
+        title: 'Akta Kelahiran',
+        description: 'Penerbitan akta kelahiran anak ke-2.',
+        status: 'SELESAI',
+        date: '25 Sep 2023',
+        reqId: '#REQ-6542',
+        icon: 'receipt-outline',
+        iconBg: '#F0FDF4',
+        iconColor: '#10B981',
+        meta: 'Diambil',
+        metaIcon: 'checkmark-circle',
+        metaColor: '#10B981',
+    },
+    {
+        id: '4',
+        title: 'Surat Izin Usaha (IUMK)',
+        description: 'Izin usaha mikro kecil sektor kuliner.',
+        status: 'SELESAI',
+        date: '14 Ags 2023',
+        reqId: '#REQ-4321',
+        icon: 'storefront-outline',
+        iconBg: '#F0FDF4',
+        iconColor: '#10B981',
+        meta: 'Digital',
+        metaIcon: 'checkmark-circle',
+        metaColor: '#10B981',
+    },
+    {
+        id: '5',
+        title: 'Surat Pindah Domisili',
+        description: 'Dokumen pendukung kurang lengkap.',
+        status: 'DITOLAK',
+        date: '01 Jul 2023',
+        reqId: '#REQ-1102',
+        icon: 'location-outline',
+        iconBg: '#FEF2F2',
+        iconColor: '#EF4444',
+        meta: 'Perlu Revisi',
+        metaIcon: 'alert-circle',
+        metaColor: '#EF4444',
+    },
+];
+
+const CATEGORIES = ['Semua', 'Dalam Proses', 'Selesai', 'Ditolak'];
 
 export default function ServiceHistoryScreen() {
     const navigation = useNavigation();
-    const { layanan, loading, fetchLayanan } = useLayananStore();
+    const [activeTab, setActiveTab] = useState('Semua');
     const [searchQuery, setSearchQuery] = useState('');
     const [refreshing, setRefreshing] = useState(false);
 
-    useEffect(() => {
-        fetchLayanan({ page: 0, size: 100 });
-    }, []);
-
-    const onRefresh = async () => {
+    const onRefresh = () => {
         setRefreshing(true);
-        await fetchLayanan({ page: 0, size: 100 });
-        setRefreshing(false);
+        setTimeout(() => setRefreshing(false), 1000);
     };
 
-    const filteredItems = layanan.filter(item => {
-        const matchesSearch =
-            item.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.deskripsi?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.dinasNama?.toLowerCase().includes(searchQuery.toLowerCase());
+    const getStatusStyle = (status: string) => {
+        switch (status) {
+            case 'DIPROSES':
+                return { bg: '#DBEAFE', text: '#1E40AF', dot: '#3B82F6' };
+            case 'DIAJUKAN':
+                return { bg: '#FEF3C7', text: '#92400E', dot: '#F59E0B' };
+            case 'SELESAI':
+                return { bg: '#DCFCE7', text: '#166534', dot: '#22C55E' };
+            case 'DITOLAK':
+                return { bg: '#FEE2E2', text: '#991B1B', dot: '#EF4444' };
+            default:
+                return { bg: '#F1F5F9', text: '#64748B', dot: '#94A3B8' };
+        }
+    };
 
-        return matchesSearch;
+    const filteredItems = DUMMY_DATA.filter(item => {
+        const matchesTab = activeTab === 'Semua' ||
+            (activeTab === 'Dalam Proses' && (item.status === 'DIPROSES' || item.status === 'DIAJUKAN')) ||
+            (activeTab === 'Selesai' && item.status === 'SELESAI') ||
+            (activeTab === 'Ditolak' && item.status === 'DITOLAK');
+
+        const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.reqId.toLowerCase().includes(searchQuery.toLowerCase());
+
+        return matchesTab && matchesSearch;
     });
-
-    const getServiceIcon = (nama: string): string => {
-        const namaLower = nama.toLowerCase();
-        if (namaLower.includes('pendidikan') || namaLower.includes('sekolah')) return 'school-outline';
-        if (namaLower.includes('kesehatan') || namaLower.includes('rumah sakit')) return 'medical-outline';
-        if (namaLower.includes('ktp') || namaLower.includes('identitas')) return 'id-card-outline';
-        if (namaLower.includes('keluarga') || namaLower.includes('kk')) return 'people-outline';
-        if (namaLower.includes('izin') || namaLower.includes('perizinan')) return 'document-text-outline';
-        if (namaLower.includes('pajak')) return 'cash-outline';
-        if (namaLower.includes('pertanian') || namaLower.includes('pangan')) return 'leaf-outline';
-        if (namaLower.includes('transportasi') || namaLower.includes('jalan')) return 'car-outline';
-        if (namaLower.includes('lingkungan')) return 'earth-outline';
-        return 'clipboard-outline';
-    };
-
-    const getServiceColor = (index: number) => {
-        const colors = [
-            { bg: '#EFF6FF', color: '#3B82F6' },
-            { bg: '#F0FDF4', color: '#10B981' },
-            { bg: '#FFFBEB', color: '#F59E0B' },
-            { bg: '#FEF2F2', color: '#EF4444' },
-            { bg: '#F5F3FF', color: '#8B5CF6' },
-            { bg: '#FDF4FF', color: '#D946EF' },
-        ];
-        return colors[index % colors.length];
-    };
 
     return (
         <View style={styles.container}>
@@ -75,8 +144,32 @@ export default function ServiceHistoryScreen() {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Icon name="arrow-back" size={24} color="#0F172A" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Daftar Layanan</Text>
-                <View style={styles.headerBtn} />
+                <Text style={styles.headerTitle}>RIWAYAT LAYANAN</Text>
+                <TouchableOpacity style={styles.headerBtn}>
+                    <Icon name="options-outline" size={24} color="#0F172A" />
+                </TouchableOpacity>
+            </View>
+
+            {/* Tabs */}
+            <View style={styles.tabContainer}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.tabBarContent}
+                >
+                    {CATEGORIES.map(cat => (
+                        <TouchableOpacity
+                            key={cat}
+                            style={[styles.tabItem, activeTab === cat && styles.activeTabItem]}
+                            onPress={() => setActiveTab(cat)}
+                        >
+                            <Text style={[styles.tabText, activeTab === cat && styles.activeTabText]}>
+                                {cat.toUpperCase()}
+                            </Text>
+                            {activeTab === cat && <View style={styles.tabIndicator} />}
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
             </View>
 
             {/* Search Bar */}
@@ -85,7 +178,7 @@ export default function ServiceHistoryScreen() {
                     <Icon name="search-outline" size={20} color="#94A3B8" />
                     <TextInput
                         style={styles.searchInput}
-                        placeholder="Cari layanan atau dinas..."
+                        placeholder="Cari nomor tiket atau layanan..."
                         placeholderTextColor="#94A3B8"
                         value={searchQuery}
                         onChangeText={setSearchQuery}
@@ -106,103 +199,75 @@ export default function ServiceHistoryScreen() {
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FFB800']} />
                 }
             >
-                {loading && !refreshing && layanan.length === 0 ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color="#FFB800" />
-                        <Text style={styles.loadingText}>Memuat layanan...</Text>
-                    </View>
-                ) : filteredItems.length === 0 ? (
-                    <View style={styles.emptyContainer}>
-                        <View style={styles.emptyIconCircle}>
-                            <Icon name="search-outline" size={48} color="#CBD5E1" />
-                        </View>
-                        <Text style={styles.emptyTitle}>
-                            {searchQuery ? 'Tidak Ditemukan' : 'Belum Ada Layanan'}
-                        </Text>
-                        <Text style={styles.emptyText}>
-                            {searchQuery ? 'Coba kata kunci lain' : 'Belum ada layanan tersedia'}
-                        </Text>
-                    </View>
-                ) : (
-                    <>
-                        {filteredItems.map((item, index) => {
-                            if (!item || !item.id) return null;
+                {filteredItems.map(item => {
+                    const statusStyle = getStatusStyle(item.status);
+                    return (
+                        <TouchableOpacity key={item.id} style={styles.card} activeOpacity={0.7}>
+                            {/* Icon Section */}
+                            <View style={[styles.iconContainer, { backgroundColor: item.iconBg }]}>
+                                <Icon name={item.icon} size={24} color={item.iconColor} />
+                            </View>
 
-                            const iconColor = getServiceColor(index);
-                            const serviceIcon = getServiceIcon(item.nama || '');
-                            const hasEstimasi = item.estimasiWaktu && typeof item.estimasiWaktu === 'number' && item.estimasiWaktu > 0;
-                            const hasPhone = item.phoneNumber && String(item.phoneNumber).length > 0;
-
-                            return (
-                                <TouchableOpacity key={`service-${item.id}`} style={styles.card}>
-                                    {/* Icon Section */}
-                                    <View style={[styles.iconContainer, { backgroundColor: iconColor.bg }]}>
-                                        <Icon name={serviceIcon} size={24} color={iconColor.color} />
+                            <View style={styles.cardContent}>
+                                {/* Header with Title and Status Badge */}
+                                <View style={styles.cardHeader}>
+                                    <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                                    <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                                        <View style={[styles.statusDot, { backgroundColor: statusStyle.dot }]} />
+                                        <Text style={[styles.statusText, { color: statusStyle.text }]}>{item.status}</Text>
                                     </View>
+                                </View>
 
-                                    <View style={styles.cardContent}>
-                                        {/* Header with Title */}
-                                        <Text style={styles.cardTitle} numberOfLines={2}>
-                                            {item.nama ? String(item.nama) : 'Layanan'}
-                                        </Text>
+                                {/* Description */}
+                                <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
 
-                                        {/* Description */}
-                                        <Text style={styles.cardDesc} numberOfLines={2}>
-                                            {item.deskripsi ? String(item.deskripsi) : 'Tidak ada deskripsi'}
-                                        </Text>
-
-                                        {/* Dinas Badge */}
-                                        {item.dinasNama ? (
-                                            <View style={styles.dinasBadge}>
-                                                <Icon name="business-outline" size={12} color="#64748B" />
-                                                <Text style={styles.dinasText} numberOfLines={1}>
-                                                    {String(item.dinasNama)}
-                                                </Text>
-                                            </View>
-                                        ) : null}
-
-                                        {/* Footer with Meta Info */}
-                                        <View style={styles.cardFooter}>
-                                            <View style={styles.metaRow}>
-                                                {hasEstimasi ? (
-                                                    <View style={styles.metaItem}>
-                                                        <Icon name="time-outline" size={13} color="#64748B" />
-                                                        <Text style={styles.metaText}>
-                                                            {String(item.estimasiWaktu)} hari
-                                                        </Text>
-                                                    </View>
-                                                ) : null}
-                                                {hasPhone ? (
-                                                    <View style={styles.metaItem}>
-                                                        {hasEstimasi ? <View style={styles.metaDivider} /> : null}
-                                                        <Icon name="call-outline" size={13} color="#64748B" />
-                                                        <Text style={styles.metaText}>Kontak</Text>
-                                                    </View>
-                                                ) : null}
-                                            </View>
-
-                                            <TouchableOpacity style={styles.detailBtn}>
-                                                <Text style={styles.detailBtnText}>Detail</Text>
-                                                <Icon name="chevron-forward" size={16} color="#FFB800" />
-                                            </TouchableOpacity>
+                                {/* Footer Info */}
+                                <View style={styles.cardFooter}>
+                                    <View style={styles.metaRow}>
+                                        <View style={styles.metaItem}>
+                                            <Icon name="calendar-outline" size={13} color="#94A3B8" />
+                                            <Text style={styles.metaText}>{item.date}</Text>
+                                        </View>
+                                        <View style={styles.metaDivider} />
+                                        <View style={styles.metaItem}>
+                                            <Icon name="document-text-outline" size={13} color="#94A3B8" />
+                                            <Text style={styles.metaText}>{item.reqId}</Text>
                                         </View>
                                     </View>
-                                </TouchableOpacity>
-                            );
-                        })}
 
-                        {filteredItems.length > 0 ? (
-                            <View style={styles.footerContainer}>
-                                <View style={styles.footerDivider} />
-                                <Text style={styles.footerText}>
-                                    {'Menampilkan ' + String(filteredItems.length) + ' layanan'}
-                                </Text>
+                                    {item.meta && (
+                                        <View style={styles.metaBadge}>
+                                            {item.metaIcon && <Icon name={item.metaIcon} size={12} color={item.metaColor} />}
+                                            <Text style={[styles.metaBadgeText, { color: item.metaColor }]}>{item.meta}</Text>
+                                        </View>
+                                    )}
+                                </View>
                             </View>
-                        ) : null}
-                    </>
+                        </TouchableOpacity>
+                    );
+                })}
+
+                {filteredItems.length === 0 && (
+                    <View style={styles.emptyContainer}>
+                        <View style={styles.emptyIconCircle}>
+                            <Icon name="document-text-outline" size={48} color="#CBD5E1" />
+                        </View>
+                        <Text style={styles.emptyTitle}>Tidak Ada Riwayat</Text>
+                        <Text style={styles.emptyText}>
+                            {searchQuery ? 'Coba kata kunci lain' : 'Belum ada riwayat layanan'}
+                        </Text>
+                    </View>
                 )}
 
-                <View style={{ height: 20 }} />
+                {filteredItems.length > 0 && (
+                    <View style={styles.listFooter}>
+                        <View style={styles.footerLine} />
+                        <Text style={styles.listFooterText}>
+                            MENAMPILKAN {filteredItems.length} RIWAYAT TERAKHIR
+                        </Text>
+                        <View style={styles.footerLine} />
+                    </View>
+                )}
             </ScrollView>
         </View>
     );
@@ -221,8 +286,6 @@ const styles = StyleSheet.create({
         paddingTop: Platform.OS === 'ios' ? 50 : 20,
         paddingBottom: 16,
         backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F1F5F9',
     },
     headerBtn: {
         width: 40,
@@ -231,9 +294,43 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     headerTitle: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: "900",
         color: "#0F172A",
+        letterSpacing: 1,
+    },
+    tabContainer: {
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    tabBarContent: {
+        paddingHorizontal: 12,
+    },
+    tabItem: {
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        marginHorizontal: 4,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    tabText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#94A3B8',
+        letterSpacing: 0.5,
+    },
+    activeTabText: {
+        color: '#0F172A',
+        fontWeight: '900',
+    },
+    tabIndicator: {
+        position: 'absolute',
+        bottom: 0,
+        left: 12,
+        right: 12,
+        height: 3,
+        backgroundColor: '#FFB800',
     },
     searchContainer: {
         padding: 16,
@@ -255,94 +352,85 @@ const styles = StyleSheet.create({
         marginLeft: 8,
         fontSize: 14,
         color: '#0F172A',
-        fontWeight: '500',
+        fontWeight: '600',
     },
     content: {
         flex: 1,
     },
     scrollContent: {
-        paddingBottom: 20,
-    },
-    loadingContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 80,
-    },
-    loadingText: {
-        marginTop: 16,
-        fontSize: 14,
-        color: '#64748B',
-        fontWeight: '600',
+        paddingBottom: 40,
     },
     card: {
         flexDirection: 'row',
         padding: 16,
         marginHorizontal: 16,
-        marginTop: 16,
+        marginTop: 12,
         backgroundColor: '#FFFFFF',
         borderWidth: 1,
         borderColor: '#F1F5F9',
-        elevation: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
     },
     iconContainer: {
         width: 48,
         height: 48,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 12,
+        marginRight: 16,
     },
     cardContent: {
         flex: 1,
     },
+    cardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
     cardTitle: {
         fontSize: 15,
         fontWeight: '900',
-        color: '#0F172A',
-        lineHeight: 20,
-        marginBottom: 6,
+        color: '#1E293B',
+        flex: 1,
+        marginRight: 8,
+    },
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        gap: 6,
+    },
+    statusDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    statusText: {
+        fontSize: 10,
+        fontWeight: '900',
+        letterSpacing: 0.5,
     },
     cardDesc: {
         fontSize: 13,
         color: '#64748B',
         fontWeight: '500',
         lineHeight: 18,
-        marginBottom: 8,
-    },
-    dinasBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFFBEB',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        alignSelf: 'flex-start',
-        marginBottom: 8,
-        borderWidth: 1,
-        borderColor: '#FEF3C7',
-    },
-    dinasText: {
-        fontSize: 10,
-        fontWeight: '900',
-        color: '#D97706',
-        textTransform: 'uppercase',
-        marginLeft: 4,
+        marginBottom: 12,
     },
     cardFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        marginTop: 4,
     },
     metaRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 8,
     },
     metaItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginRight: 8,
+        gap: 4,
     },
     metaDivider: {
         width: 1,
@@ -351,18 +439,17 @@ const styles = StyleSheet.create({
     },
     metaText: {
         fontSize: 11,
-        color: '#64748B',
+        color: '#94A3B8',
         fontWeight: '700',
-        marginLeft: 4,
     },
-    detailBtn: {
+    metaBadge: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 4,
     },
-    detailBtnText: {
-        fontSize: 12,
+    metaBadgeText: {
+        fontSize: 11,
         fontWeight: '900',
-        color: '#FFB800',
     },
     emptyContainer: {
         alignItems: 'center',
@@ -371,10 +458,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 40,
     },
     emptyIconCircle: {
-        width: 96,
-        height: 96,
-        borderRadius: 48,
-        backgroundColor: '#F8FAFC',
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: '#F1F5F9',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 16,
@@ -391,20 +478,23 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         textAlign: 'center',
     },
-    footerContainer: {
-        marginTop: 32,
+    listFooter: {
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 32,
+        paddingHorizontal: 24,
+        gap: 12,
     },
-    footerDivider: {
-        width: 60,
-        height: 2,
+    footerLine: {
+        flex: 1,
+        height: 1,
         backgroundColor: '#E2E8F0',
-        marginBottom: 12,
     },
-    footerText: {
-        fontSize: 12,
+    listFooterText: {
+        fontSize: 10,
         color: '#94A3B8',
-        fontWeight: '700',
-        letterSpacing: 0.3,
+        fontWeight: '900',
+        letterSpacing: 1,
     },
 });
