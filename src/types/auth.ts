@@ -13,13 +13,15 @@ export interface User {
 export interface AuthState {
     user: User | null;
     token: string | null;
+    refreshToken: string | null;
     isLoading: boolean;
     isHydrated: boolean;
 
     // Actions
-    signIn: (token: string) => void;
+    signIn: (token: string, refreshToken?: string) => void;
     signOut: () => void;
     checkAuth: () => Promise<void>;
+    refreshAccessToken: () => Promise<boolean>;
 }
 
 export interface LoginCredentials {

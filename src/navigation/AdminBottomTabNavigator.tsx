@@ -1,9 +1,12 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import ProfileStackNavigator from './ProfileStackNavigator';
+import EmergencyScreen from '../screens/EmergencyScreen';
+import FeatherIcon from 'react-native-vector-icons/Feather';
+import ApplicationScreen from '../screens/ApplicationScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -12,8 +15,11 @@ const PlaceholderScreen = ({ name }: { name: string }) => (
         <Icon name="construction" size={60} color="#CBD5E1" />
         <View style={{ height: 20 }} />
         <Icon name="work-outline" size={24} color="#94A3B8" />
+        <Text style={{ marginTop: 10, color: '#64748B' }}>Modul {name} segera hadir</Text>
     </View>
 );
+
+
 
 export default function AdminBottomTabNavigator() {
     return (
@@ -35,14 +41,14 @@ export default function AdminBottomTabNavigator() {
             />
             <Tab.Screen
                 name="Aplikasi"
-                component={() => <PlaceholderScreen name="Aplikasi" />}
+                component={ApplicationScreen}
                 options={{
-                    tabBarIcon: ({ color }) => <Icon name="assignment" size={24} color={color} />,
+                    tabBarIcon: ({ color }) => <Icon name="grid-view" size={24} color={color} />,
                 }}
             />
             <Tab.Screen
-                name="Darurat"
-                component={() => <PlaceholderScreen name="Darurat" />}
+                name="Scan"
+                component={() => <PlaceholderScreen name="Scan" />}
                 options={{
                     tabBarLabel: () => null,
                     tabBarButton: (props) => {
@@ -54,7 +60,7 @@ export default function AdminBottomTabNavigator() {
                                 activeOpacity={0.8}
                             >
                                 <View style={styles.scanButton}>
-                                    <Icon name="notifications-active" size={28} color="#000000" />
+                                    <Icon name="qr-code-scanner" size={28} color="#000000" />
                                 </View>
                             </TouchableOpacity>
                         );
@@ -62,10 +68,10 @@ export default function AdminBottomTabNavigator() {
                 }}
             />
             <Tab.Screen
-                name="Pesan"
-                component={() => <PlaceholderScreen name="Pesan" />}
+                name="Darurat"
+                component={EmergencyScreen}
                 options={{
-                    tabBarIcon: ({ color }) => <Icon name="email" size={24} color={color} />,
+                    tabBarIcon: ({ color }) => <FeatherIcon name="alert-circle" size={22} color={color} />,
                 }}
             />
             <Tab.Screen

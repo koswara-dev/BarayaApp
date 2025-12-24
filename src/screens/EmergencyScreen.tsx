@@ -14,7 +14,15 @@ import useToastStore from '../stores/toastStore';
 import { notificationHelper } from '../utils/notificationHelper';
 import { playEmergencySound } from '../utils/soundPlayer';
 import useLayananStore from '../stores/layananStore';
+import useUserStore from '../stores/userStore';
+import LoadingOverlay from '../components/LoadingOverlay';
 import { LogBox } from 'react-native';
+import IndustrialFormSection from '../components/Form/IndustrialFormSection';
+import IndustrialInput from '../components/Form/IndustrialInput';
+import IndustrialLocationCard from '../components/Form/IndustrialLocationCard';
+import IndustrialImagePicker from '../components/Form/IndustrialImagePicker';
+import IndustrialMiniMap from '../components/Form/IndustrialMiniMap';
+
 
 // Ignore specific and common warnings
 LogBox.ignoreLogs([
@@ -44,6 +52,7 @@ export default function EmergencyScreen() {
     const { sendNotification } = useNotificationStore();
     const showToast = useToastStore((state) => state.showToast);
     const { dinas: dinasList, fetchDinas } = useLayananStore();
+    const { profile, fetchUserProfile } = useUserStore();
 
     const [message, setMessage] = useState('');
     const [location, setLocation] = useState({
@@ -58,6 +67,9 @@ export default function EmergencyScreen() {
     const [showCompleteModal, setShowCompleteModal] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [showLocModal, setShowLocModal] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submittedDinas, setSubmittedDinas] = useState<any>(null);
 
     // Map static emergency types to real backend dinas data
     const mappedEmergencyOptions = React.useMemo(() => {
@@ -77,6 +89,7 @@ export default function EmergencyScreen() {
     useEffect(() => {
         if (user?.id) {
             fetchMyActiveReport(user.id);
+            fetchUserProfile(user.id);
         }
         fetchDinas();
         // Inisialisasi channel notifikasi
@@ -91,14 +104,30 @@ export default function EmergencyScreen() {
     }, [activeReport]);
 
     const requestNotificationPermission = async () => {
-        if (Platform.OS === 'android' && Number(Platform.Version) >= 33) {
-            const postNotificationPermission = (PERMISSIONS.ANDROID as any).POST_NOTIFICATIONS;
-            if (postNotificationPermission) {
-                const permissionCheck = await check(postNotificationPermission);
-                if (permissionCheck === RESULTS.DENIED) {
-                    await request(postNotificationPermission);
+        if (Platform.OS === 'android') {
+            const apiLevel = Number(Platform.Version);
+
+            // 1. Notification & Audio Permission (Android 13+)
+            if (apiLevel >= 33) {
+                const postNotificationPermission = (PERMISSIONS.ANDROID as any).POST_NOTIFICATIONS;
+                const audioPermission = (PERMISSIONS.ANDROID as any).READ_MEDIA_AUDIO;
+
+                if (postNotificationPermission) {
+                    await request(postNotificationPermission).catch(err => console.log('Permission error:', err));
+                }
+
+                if (audioPermission) {
+                    await request(audioPermission).catch(err => console.log('Permission error:', err));
                 }
             }
+
+            // 2. Calendar Permissions
+            // Safely request, catching errors if any constant is undefined or native module fails
+            const readCalendar = PERMISSIONS.ANDROID.READ_CALENDAR;
+            const writeCalendar = PERMISSIONS.ANDROID.WRITE_CALENDAR;
+
+            if (readCalendar) await request(readCalendar).catch(() => { });
+            if (writeCalendar) await request(writeCalendar).catch(() => { });
         }
     };
 
@@ -180,6 +209,11 @@ export default function EmergencyScreen() {
         setPhoto(null);
     };
 
+    const handleConfirmSubmit = () => {
+        if (!message.trim() || !selectedDinas) return;
+        setShowConfirmModal(true);
+    };
+
     const handleSubmit = async () => {
         if (!message.trim()) return;
 
@@ -188,11 +222,14 @@ export default function EmergencyScreen() {
             return;
         }
 
+        setIsSubmitting(true);
+        setSubmittedDinas(selectedDinas);
+
         try {
             const reportPayload = {
                 userId: user.id,
-                fullName: user.fullName || "User",
-                phoneNumber: (user as any)?.phoneNumber || "08123456789",
+                fullName: profile?.fullName || user.fullName || "User",
+                phoneNumber: profile?.phoneNumber || "08123456789",
                 latitude: location.lat,
                 longitude: location.long,
                 pesan: message,
@@ -202,45 +239,46 @@ export default function EmergencyScreen() {
             };
 
             const result = await createReport(reportPayload);
-            showToast('Laporan Anda telah berhasil diterima', 'success');
 
-            // Beri jeda 4 detik agar backend benar-benar selesai menyimpan data (mencegah "Event not found")
-            await new Promise(resolve => setTimeout(() => resolve(null), 4000));
-
-            try {
-                // Send notification to API /api/v1/notifikasi
-                await sendNotification({
-                    judul: "Pesan Darurat!",
-                    pesan: message,
-                    read: false,
-                    eventId: 1, // Menggunakan default value (ID 1) sesuai instruksi agar tidak error 'Event not found'
-                    dinasId: selectedDinas?.id || null,
-                    dinasNama: selectedDinas?.nama || null
-                });
-            } catch (notifError) {
-                // Silently fail for backend notification sync
-                console.log('Backend notification sync failed:', notifError);
-            }
-
-            // Tampilkan Notifikasi Lokal di HP (System Tray)
-            await notificationHelper.displayNotification(
-                "Pesan Darurat!",
-                message,
-                'emergency'
-            );
-
-            // Vibration pattern like Gojek order notification
-            Vibration.vibrate([0, 200, 100, 200, 100, 300]);
-            playEmergencySound();
-
-            // Show success modal
+            // Immediately hide loading and show success modal
+            setIsSubmitting(false);
             setShowSuccessModal(true);
-            showToast('Laporan dan notifikasi telah dikirimkan secara luas', 'success');
             setMessage('');
             setPhoto(null);
             setSelectedDinas(null);
 
+            // Background tasks - don't block UI
+            setTimeout(async () => {
+                // Tampilkan Notifikasi Lokal di HP (System Tray) SEGERA
+                // Agar user langsung dengar alarm dan lihat notif tanpa nunggu sync backend
+                await notificationHelper.displayNotification(
+                    "Pesan Darurat!",
+                    message,
+                    'emergency',
+                    { ...result, judul: "Pesan Darurat!" } // Pass the full result data
+                );
+
+                try {
+                    // Send notification to API /api/v1/notifikasi for recording in history
+                    // We don't rely on this for the immediate visual alert anymore
+                    await sendNotification({
+                        judul: "Pesan Darurat!",
+                        pesan: message,
+                        read: false,
+                        eventId: result.id,
+                        dinasId: selectedDinas?.id || null,
+                        dinasNama: selectedDinas?.nama || null
+                    });
+                } catch (notifError) {
+                    console.log('Backend notification sync failed:', notifError);
+                }
+
+                // Vibration pattern like Gojek order notification
+                Vibration.vibrate([0, 200, 100, 200, 100, 300]);
+            }, 500);
+
         } catch (error: any) {
+            setIsSubmitting(false);
             showToast(error.message || 'Terjadi kesalahan saat mengirim laporan.', 'error');
         }
     };
@@ -600,14 +638,60 @@ export default function EmergencyScreen() {
                         </View>
                     </View>
                 </Modal>
+
+                {/* Success Modal in Active Report View */}
+                <Modal
+                    visible={showSuccessModal}
+                    transparent={true}
+                    animationType="fade"
+                    onRequestClose={() => setShowSuccessModal(false)}
+                >
+                    <View style={styles.confirmModalOverlay}>
+                        <View style={[styles.confirmModalContainer, { borderLeftColor: '#10B981' }]}>
+                            <View style={styles.confirmHeader}>
+                                <View style={[styles.confirmIconBox, { backgroundColor: '#DCFCE7' }]}>
+                                    <Icon name="checkmark-circle" size={24} color="#10B981" />
+                                </View>
+                                <Text style={styles.confirmTitle}>LAPORAN TERKIRIM</Text>
+                            </View>
+
+                            <Text style={[styles.confirmWarning, { backgroundColor: '#DCFCE7', color: '#166534' }]}>
+                                Bantuan akan segera datang. Tim kami telah menerima lokasi dan laporan Anda.
+                            </Text>
+
+                            <View style={styles.confirmInfoSection}>
+                                <Text style={styles.confirmInfoLabel}>DETAIL LAPORAN</Text>
+                                <View style={styles.confirmInfoRow}>
+                                    <Text style={styles.confirmInfoKey}>Dinas</Text>
+                                    <Text style={[styles.confirmInfoValue, { color: '#10B981', fontWeight: '900' }]}>: {submittedDinas?.nama?.toUpperCase() || activeReport?.dinasNama?.toUpperCase() || '-'}</Text>
+                                </View>
+                                <View style={styles.confirmInfoRow}>
+                                    <Text style={styles.confirmInfoKey}>Status</Text>
+                                    <Text style={[styles.confirmInfoValue, { color: '#10B981', fontWeight: '900' }]}>: MENUNGGU RESPON</Text>
+                                </View>
+                            </View>
+
+                            <Text style={styles.confirmAccountability}>
+                                "Petugas akan segera menghubungi Anda. Tetap tenang dan jangan tinggalkan lokasi."
+                            </Text>
+
+                            <TouchableOpacity
+                                style={[styles.confirmSubmitBtn, { backgroundColor: '#10B981' }]}
+                                onPress={() => setShowSuccessModal(false)}
+                            >
+                                <Text style={styles.confirmSubmitBtnText}>LIHAT STATUS LAPORAN</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </Modal>
             </View>
         );
     }
 
-    // --- RENDER FORM VIEW ---
     return (
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+            <LoadingOverlay visible={isSubmitting} message="Mengirim Laporan Darurat..." />
 
             {/* Header */}
             <View style={styles.header}>
@@ -625,35 +709,41 @@ export default function EmergencyScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 40 }}
             >
-                {/* Detected Location Card (Clickable to Edit) */}
-                <TouchableOpacity style={styles.locationContainer} onPress={handleManualLocation}>
-                    <View style={styles.locationFlatBox}>
-                        <View style={styles.locationLeftLine} />
-                        <View style={styles.locationInfo}>
-                            <View style={styles.locationHeaderRow}>
-                                <Icon name="location" size={16} color="#E11D48" />
-                                <Text style={styles.locationLabel}>LOKASI KEJADIAN (TAP UNTUK EDIT)</Text>
-                            </View>
-                            <Text style={styles.addressLine} numberOfLines={1}>
-                                {location.address}
-                            </Text>
-                            <View style={styles.accuracyRow}>
-                                <Text style={styles.accuracyLine}>
-                                    {location.lat.toFixed(5)}, {location.long.toFixed(5)}
-                                </Text>
-                                <View style={styles.dotSeparator} />
-                                <Text style={styles.accuracyHint}>Geser pin untuk akurasi</Text>
-                            </View>
-                        </View>
-                        <Icon name="chevron-forward" size={18} color="#94A3B8" />
-                    </View>
+                {/* Location Input (Form Biasa) */}
+                <IndustrialFormSection title="LOKASI KEJADIAN" stripeColor="#EAB308" />
+                <IndustrialInput
+                    placeholder="Masukkan alamat atau patokan lokasi..."
+                    value={location.address}
+                    onChangeText={(val) => setLocation(prev => ({ ...prev, address: val }))}
+                />
+
+                <IndustrialMiniMap
+                    latitude={location.lat}
+                    longitude={location.long}
+                    loading={locLoading}
+                    onLocationChange={(lat, lng) => setLocation(prev => ({ ...prev, lat, long: lng }))}
+                    onPress={() => navigation.navigate('MapEmergency', {
+                        onLocationSelect: (newLoc: any) => {
+                            setLocation({
+                                lat: newLoc.lat,
+                                long: newLoc.long,
+                                address: newLoc.address
+                            });
+                        }
+                    })}
+                />
+
+                <TouchableOpacity
+                    style={styles.locateBtnEmergency}
+                    onPress={requestLocation}
+                >
+                    <Icon name="locate" size={16} color="#E11D48" />
+                    <Text style={styles.locateBtnTextEmergency}>AMBIL LOKASI GPS SAYA</Text>
                 </TouchableOpacity>
 
+
                 {/* Emergency Category */}
-                <View style={styles.sectionHeader}>
-                    <View style={styles.sectionStripe} />
-                    <Text style={styles.sectionTitle}>KATEGORI DARURAT</Text>
-                </View>
+                <IndustrialFormSection title="KATEGORI DARURAT" stripeColor="#FFB800" />
 
                 <ScrollView
                     horizontal
@@ -697,57 +787,30 @@ export default function EmergencyScreen() {
                 </ScrollView>
 
                 {/* Message Input */}
-                <View style={styles.sectionHeader}>
-                    <View style={styles.sectionStripe} />
-                    <Text style={styles.sectionTitle}>DESKRIPSI DARURAT (WAJIB)</Text>
-                </View>
+                <IndustrialFormSection title="DESKRIPSI DARURAT (WAJIB)" stripeColor="#E11D48" />
 
-                <View style={styles.messageBox}>
-                    <TextInput
-                        style={styles.textInput}
-                        placeholder="Jelaskan situasi darurat secara singkat..."
-                        placeholderTextColor="#94A3B8"
-                        multiline
-                        maxLength={200}
-                        value={message}
-                        onChangeText={setMessage}
-                        textAlignVertical="top"
-                    />
-                    <Text style={styles.charCounter}>{message.length}/200</Text>
-                </View>
+                <IndustrialInput
+                    placeholder="Jelaskan situasi darurat secara singkat..."
+                    multiline
+                    maxLength={200}
+                    value={message}
+                    onChangeText={setMessage}
+                    showCounter
+                />
 
                 {/* Photo Section */}
-                <View style={styles.sectionHeader}>
-                    <View style={styles.sectionStripe} />
-                    <Text style={styles.sectionTitle}>FOTO KEJADIAN (OPSIONAL)</Text>
-                </View>
+                <IndustrialFormSection title="FOTO KEJADIAN (OPSIONAL)" stripeColor="#64748B" />
 
-                <View style={styles.photoContainer}>
-                    {photo ? (
-                        <View style={styles.photoPreviewBox}>
-                            <Image source={{ uri: photo.uri }} style={styles.photoPreview} />
-                            <TouchableOpacity style={styles.removePhotoBtn} onPress={removePhoto}>
-                                <Icon name="close-circle" size={28} color="#E11D48" />
-                            </TouchableOpacity>
-                        </View>
-                    ) : (
-                        <View style={styles.photoBtnRow}>
-                            <TouchableOpacity style={styles.photoInputBtn} onPress={handleCamera}>
-                                <Icon name="camera-outline" size={28} color="#64748B" />
-                                <Text style={styles.photoBtnText}>Kamera</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.photoInputBtn} onPress={handleGallery}>
-                                <Icon name="images-outline" size={28} color="#64748B" />
-                                <Text style={styles.photoBtnText}>Galeri</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                </View>
+                <IndustrialImagePicker
+                    photo={photo}
+                    onPhotoSelected={setPhoto}
+                    onPhotoRemoved={removePhoto}
+                />
 
                 {/* SOS Button */}
                 <TouchableOpacity
                     style={[styles.sosBtn, (!selectedDinas || !message.trim() || loading) && styles.sosDisabled]}
-                    onPress={handleSubmit}
+                    onPress={handleConfirmSubmit}
                     disabled={!selectedDinas || !message.trim() || loading}
                 >
                     {loading ? (
@@ -776,22 +839,100 @@ export default function EmergencyScreen() {
                 animationType="fade"
                 onRequestClose={() => setShowSuccessModal(false)}
             >
-                <View style={styles.successModalOverlay}>
-                    <View style={styles.successModalContainer}>
-                        <View style={styles.successIconCircle}>
-                            <View style={styles.successIconInner}>
-                                <Icon name="checkmark" size={48} color="#FFF" />
+                <View style={styles.confirmModalOverlay}>
+                    <View style={[styles.confirmModalContainer, { borderLeftColor: '#10B981' }]}>
+                        <View style={styles.confirmHeader}>
+                            <View style={[styles.confirmIconBox, { backgroundColor: '#DCFCE7' }]}>
+                                <Icon name="checkmark-circle" size={24} color="#10B981" />
                             </View>
+                            <Text style={styles.confirmTitle}>LAPORAN TERKIRIM</Text>
                         </View>
-                        <Text style={styles.successModalTitle}>Laporan Terkirim!</Text>
-                        <Text style={styles.successModalMessage}>
+
+                        <Text style={[styles.confirmWarning, { backgroundColor: '#DCFCE7', color: '#166534' }]}>
                             Bantuan akan segera datang. Tim kami telah menerima lokasi dan laporan Anda.
                         </Text>
+
+                        <View style={styles.confirmInfoSection}>
+                            <Text style={styles.confirmInfoLabel}>DETAIL LAPORAN</Text>
+                            <View style={styles.confirmInfoRow}>
+                                <Text style={styles.confirmInfoKey}>Dinas</Text>
+                                <Text style={[styles.confirmInfoValue, { color: '#10B981', fontWeight: '900' }]}>: {submittedDinas?.nama?.toUpperCase() || '-'}</Text>
+                            </View>
+                            <View style={styles.confirmInfoRow}>
+                                <Text style={styles.confirmInfoKey}>Status</Text>
+                                <Text style={[styles.confirmInfoValue, { color: '#10B981', fontWeight: '900' }]}>: MENUNGGU RESPON</Text>
+                            </View>
+                        </View>
+
+                        <Text style={styles.confirmAccountability}>
+                            "Petugas akan segera menghubungi Anda. Tetap tenang dan jangan tinggalkan lokasi."
+                        </Text>
+
                         <TouchableOpacity
-                            style={styles.successModalBtn}
+                            style={[styles.confirmSubmitBtn, { backgroundColor: '#10B981' }]}
                             onPress={() => setShowSuccessModal(false)}
                         >
-                            <Text style={styles.successModalBtnText}>Lihat Status Laporan</Text>
+                            <Text style={styles.confirmSubmitBtnText}>LIHAT STATUS LAPORAN</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Emergency Confirmation Modal (Custom UI) */}
+            <Modal
+                visible={showConfirmModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowConfirmModal(false)}
+            >
+                <View style={styles.confirmModalOverlay}>
+                    <View style={styles.confirmModalContainer}>
+                        <View style={styles.confirmHeader}>
+                            <View style={styles.confirmIconBox}>
+                                <Icon name="warning" size={24} color="#E11D48" />
+                            </View>
+                            <Text style={styles.confirmTitle}>KONFIRMASI DARURAT</Text>
+                        </View>
+
+                        <Text style={styles.confirmWarning}>
+                            Penyalahgunaan fitur ini dapat dikenakan sanksi. Pastikan situasi benar-benar darurat.
+                        </Text>
+
+                        <View style={styles.confirmInfoSection}>
+                            <Text style={styles.confirmInfoLabel}>IDENTITAS PELAPOR</Text>
+                            <View style={styles.confirmInfoRow}>
+                                <Text style={styles.confirmInfoKey}>Nama</Text>
+                                <Text style={styles.confirmInfoValue}>: {profile?.fullName || user?.fullName || 'User'}</Text>
+                            </View>
+                            <View style={styles.confirmInfoRow}>
+                                <Text style={styles.confirmInfoKey}>No. HP</Text>
+                                <Text style={styles.confirmInfoValue}>: {profile?.phoneNumber || 'Tidak ada nomor'}</Text>
+                            </View>
+                            <View style={styles.confirmInfoRow}>
+                                <Text style={styles.confirmInfoKey}>Dinas</Text>
+                                <Text style={[styles.confirmInfoValue, { color: '#E11D48', fontWeight: '900' }]}>: {selectedDinas?.nama?.toUpperCase()}</Text>
+                            </View>
+                        </View>
+
+                        <Text style={styles.confirmAccountability}>
+                            "Saya menyatakan bahwa laporan ini BENAR dan saya bersedia BERTANGGUNG JAWAB atas laporan ini."
+                        </Text>
+
+                        <TouchableOpacity
+                            style={styles.confirmSubmitBtn}
+                            onPress={() => {
+                                setShowConfirmModal(false);
+                                handleSubmit();
+                            }}
+                        >
+                            <Text style={styles.confirmSubmitBtnText}>KIRIM SEKARANG</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.confirmCancelBtn}
+                            onPress={() => setShowConfirmModal(false)}
+                        >
+                            <Text style={styles.confirmCancelBtnText}>BATAL</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -801,6 +942,13 @@ export default function EmergencyScreen() {
 }
 
 const styles = StyleSheet.create({
+    row: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    col: {
+        flex: 1,
+    },
     container: {
         flex: 1,
         backgroundColor: '#FFFFFF',
@@ -1765,6 +1913,127 @@ const styles = StyleSheet.create({
         width: 8,
         height: 8,
         borderRadius: 4,
+    },
+    confirmModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(15, 23, 42, 0.85)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    confirmModalContainer: {
+        backgroundColor: '#FFFFFF',
+        width: '100%',
+        padding: 24,
+        borderRadius: 0, // Industrial flat design
+        borderLeftWidth: 8,
+        borderLeftColor: '#E11D48',
+    },
+    confirmHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 16,
+    },
+    confirmIconBox: {
+        width: 40,
+        height: 40,
+        backgroundColor: '#FFF1F2',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    confirmTitle: {
+        fontSize: 18,
+        fontWeight: '900',
+        color: '#0F172A',
+        letterSpacing: 0.5,
+    },
+    confirmWarning: {
+        fontSize: 13,
+        color: '#E11D48',
+        fontWeight: '700',
+        lineHeight: 18,
+        marginBottom: 20,
+        padding: 12,
+        backgroundColor: '#FFF1F2',
+    },
+    confirmInfoSection: {
+        marginBottom: 20,
+        padding: 16,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+    },
+    confirmInfoLabel: {
+        fontSize: 11,
+        fontWeight: '900',
+        color: '#94A3B8',
+        letterSpacing: 1,
+        marginBottom: 12,
+    },
+    confirmInfoRow: {
+        flexDirection: 'row',
+        marginBottom: 6,
+    },
+    confirmInfoKey: {
+        width: 60,
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#64748B',
+    },
+    confirmInfoValue: {
+        flex: 1,
+        fontSize: 13,
+        fontWeight: '800',
+        color: '#1E293B',
+    },
+    confirmAccountability: {
+        fontSize: 12,
+        color: '#64748B',
+        fontStyle: 'italic',
+        textAlign: 'center',
+        lineHeight: 18,
+        marginBottom: 24,
+        paddingHorizontal: 10,
+    },
+    confirmSubmitBtn: {
+        backgroundColor: '#0F172A',
+        paddingVertical: 18,
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    confirmSubmitBtnText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '900',
+        letterSpacing: 1.5,
+    },
+    confirmCancelBtn: {
+        paddingVertical: 12,
+        alignItems: 'center',
+    },
+    confirmCancelBtnText: {
+        color: '#94A3B8',
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    locateBtnEmergency: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        backgroundColor: '#FFFFFF',
+        marginHorizontal: 16,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        gap: 8,
+    },
+    locateBtnTextEmergency: {
+        fontSize: 11,
+        fontWeight: '900',
+        color: '#1E293B',
+        letterSpacing: 0.5,
     },
 });
 

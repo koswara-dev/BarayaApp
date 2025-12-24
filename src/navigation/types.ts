@@ -12,10 +12,17 @@ export type RootStackParamList = {
     MapEmergency: { onLocationSelect: (loc: any) => void };
     ProfileDetail: undefined;
     OtpVerification: { email: string };
+    Berita: undefined;
     RegisterForm: { formData: any };
     ForgotPassword: undefined;
     ServiceHistory: undefined;
     ComplaintHistory: undefined;
+    Pengaturan: undefined;
+    EventList: undefined;
+    DinasList: undefined;
+    CreateEvent: undefined;
+    CreateDinas: undefined;
+    CreateLayanan: undefined;
 };
 
 export type BottomTabParamList = {

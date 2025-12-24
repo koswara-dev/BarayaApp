@@ -182,7 +182,7 @@ export default function HomeScreen() {
               icon="newspaper"
               label="Berita"
               color="#10B981"
-              onPress={() => navigation.jumpTo('Berita')}
+              onPress={() => navigation.navigate('Berita')}
             />
             <MenuItem
               icon="calculator"
@@ -290,7 +290,11 @@ export default function HomeScreen() {
               image: "https://images.unsplash.com/photo-1596788069537-8e6d87e07664?auto=format&fit=crop&q=80&w=400"
             }
           ].map((item) => (
-            <TouchableOpacity key={item.id} style={styles.newsCard}>
+            <TouchableOpacity
+              key={item.id}
+              style={styles.newsCard}
+              onPress={() => navigation.navigate('Berita')}
+            >
               <Image source={{ uri: item.image }} style={styles.newsImage} />
               <View style={styles.newsContent}>
                 <View style={styles.newsMeta}>

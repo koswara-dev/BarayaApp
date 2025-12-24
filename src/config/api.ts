@@ -54,28 +54,112 @@ api.interceptors.request.use(
 
 /**
  * Response Interceptor: Handle 401 Unauthorized errors globally
+ * Attempts to refresh the token before signing out
  */
+let isRefreshing = false;
+let failedQueue: any[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve(token);
+        }
+    });
+
+    failedQueue = [];
+};
+
 api.interceptors.response.use(
     (response) => response,
-    (error) => {
-        // Skip handling for login endpoint
-        if (error.config?.url?.includes('/auth/login')) {
+    async (error) => {
+        const originalRequest = error.config;
+
+        // Skip handling for auth endpoints
+        if (originalRequest?.url?.includes('/auth/login') ||
+            originalRequest?.url?.includes('/auth/refresh') ||
+            originalRequest?.url?.includes('/auth/register')) {
             return Promise.reject(error);
         }
 
-        if (error.response?.status === 401) {
-            // Token expired or invalid - trigger sign out
-            const signOut = useAuthStore.getState().signOut;
-            signOut();
+        // If 401 and not already retried
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            if (isRefreshing) {
+                // Queue the request
+                return new Promise((resolve, reject) => {
+                    failedQueue.push({ resolve, reject });
+                }).then(token => {
+                    originalRequest.headers['Authorization'] = 'Bearer ' + token;
+                    return api(originalRequest);
+                }).catch(err => {
+                    return Promise.reject(err);
+                });
+            }
 
-            // Show toast notification
-            useToastStore.getState().showToast(
-                "Sesi telah berakhir, silakan login kembali",
-                "error"
-            );
+            originalRequest._retry = true;
+            isRefreshing = true;
 
-            // Navigate to login screen
-            reset("Login");
+            try {
+                // Attempt to refresh the token
+                const refreshSuccess = await useAuthStore.getState().refreshAccessToken();
+
+                if (refreshSuccess) {
+                    const newToken = useAuthStore.getState().token;
+                    processQueue(null, newToken);
+                    isRefreshing = false;
+
+                    // Retry the original request with new token
+                    if (newToken) {
+                        originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+                        return api(originalRequest);
+                    }
+                }
+
+                // Refresh failed, sign out
+                processQueue(error, null);
+                isRefreshing = false;
+
+                const signOut = useAuthStore.getState().signOut;
+                signOut();
+
+                useToastStore.getState().showToast(
+                    "Sesi telah berakhir, silakan login kembali",
+                    "error"
+                );
+
+                // Delay navigation to allow other processes to complete
+                setTimeout(() => {
+                    try {
+                        reset("Login");
+                    } catch (navError) {
+                        console.error('Navigation error:', navError);
+                    }
+                }, 100);
+
+                return Promise.reject(error);
+            } catch (refreshError) {
+                processQueue(refreshError, null);
+                isRefreshing = false;
+
+                const signOut = useAuthStore.getState().signOut;
+                signOut();
+
+                useToastStore.getState().showToast(
+                    "Sesi telah berakhir, silakan login kembali",
+                    "error"
+                );
+
+                setTimeout(() => {
+                    try {
+                        reset("Login");
+                    } catch (navError) {
+                        console.error('Navigation error:', navError);
+                    }
+                }, 100);
+
+                return Promise.reject(error);
+            }
         }
 
         return Promise.reject(error);

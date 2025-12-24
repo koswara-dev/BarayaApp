@@ -1,4 +1,19 @@
 {
   "name": "BarayaApp",
-  "displayName": "BarayaApp"
+  "displayName": "BarayaApp",
+  "android": {
+    "permissions": [
+      "ACCESS_COARSE_LOCATION",
+      "ACCESS_FINE_LOCATION",
+      "CAMERA",
+      "INTERNET",
+      "POST_NOTIFICATIONS",
+      "READ_CALENDAR",
+      "READ_EXTERNAL_STORAGE",
+      "READ_MEDIA_AUDIO",
+      "VIBRATE",
+      "WRITE_CALENDAR",
+      "WRITE_EXTERNAL_STORAGE"
+    ]
+  }
 }

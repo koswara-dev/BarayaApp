@@ -11,10 +11,19 @@ import WelcomeScreen from '../screens/WelcomeScreen';
 import NotificationScreen from '../screens/NotificationScreen';
 import MapEmergencyScreen from '../screens/MapEmergencyScreen';
 import ProfileDetailScreen from '../screens/ProfileDetailScreen';
+import NewsScreen from '../screens/NewsScreen';
 
 import RegisterScreen from '../screens/RegisterScreen';
 import OtpVerificationScreen from '../screens/OtpVerificationScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import PengaturanScreen from '../screens/PengaturanScreen';
+import EventListScreen from '../screens/EventListScreen';
+import DinasListScreen from '../screens/DinasListScreen';
+import CreateEventScreen from '../screens/CreateEventScreen';
+import CreateDinasScreen from '../screens/CreateDinasScreen';
+import CreateLayananScreen from '../screens/CreateLayananScreen';
+import ServiceHistoryScreen from '../screens/ServiceHistoryScreen';
+
 
 import { RootStackParamList } from './types';
 
@@ -45,6 +54,14 @@ export default function RootNavigator() {
             <Stack.Screen name="ServiceDetail" component={ServiceDetailScreen} />
             <Stack.Screen name="Notifikasi" component={NotificationScreen} />
             <Stack.Screen name="MapEmergency" component={MapEmergencyScreen} />
+            <Stack.Screen name="Berita" component={NewsScreen} />
+            <Stack.Screen name="Pengaturan" component={PengaturanScreen} />
+            <Stack.Screen name="EventList" component={EventListScreen} />
+            <Stack.Screen name="DinasList" component={DinasListScreen} />
+            <Stack.Screen name="CreateEvent" component={CreateEventScreen} />
+            <Stack.Screen name="CreateDinas" component={CreateDinasScreen} />
+            <Stack.Screen name="CreateLayanan" component={CreateLayananScreen} />
+            <Stack.Screen name="ServiceHistory" component={ServiceHistoryScreen} />
           </>
         ) : (
           // Unauthenticated Stack - ONLY shows if token is null

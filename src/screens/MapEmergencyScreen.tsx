@@ -12,8 +12,10 @@ export default function MapEmergencyScreen() {
     const { onLocationSelect, viewMode, initialLocation } = (route.params as any) || {};
 
     const [currentLocation, setCurrentLocation] = useState(initialLocation || { lat: -6.9175, lng: 107.6191 }); // Default Bandung
+    const [userLocation, setUserLocation] = useState<any>(null);
     const [selectedLocation, setSelectedLocation] = useState(currentLocation);
     const [address, setAddress] = useState(viewMode ? `Koordinat: ${initialLocation?.lat}, ${initialLocation?.lng}` : 'Mendapatkan alamat...');
+    const [routeInfo, setRouteInfo] = useState<{ distance: string, duration: string } | null>(null);
     const [loading, setLoading] = useState(!viewMode);
     const webViewRef = useRef<WebView>(null);
 
@@ -21,17 +23,21 @@ export default function MapEmergencyScreen() {
     useEffect(() => {
         if (!viewMode) {
             requestLocationPermission();
-        } else if (initialLocation) {
-            // Already handled by initial state, but ensure map centers
-            setTimeout(() => {
-                if (webViewRef.current) {
-                    webViewRef.current.postMessage(JSON.stringify({
-                        type: 'CENTER_MAP',
-                        lat: initialLocation.lat,
-                        lng: initialLocation.lng
-                    }));
-                }
-            }, 1000);
+        } else {
+            // In view mode, we still want to know WHERE WE ARE to make a route
+            requestLocationPermission();
+            if (initialLocation) {
+                // Already handled by initial state, but ensure map centers
+                setTimeout(() => {
+                    if (webViewRef.current) {
+                        webViewRef.current.postMessage(JSON.stringify({
+                            type: 'CENTER_MAP',
+                            lat: initialLocation.lat,
+                            lng: initialLocation.lng
+                        }));
+                    }
+                }, 1000);
+            }
         }
     }, [viewMode, initialLocation]);
 
@@ -55,7 +61,9 @@ export default function MapEmergencyScreen() {
             getCurrentLocation();
         } else {
             setLoading(false);
-            Alert.alert('Izin Lokasi', 'Diperlukan izin lokasi untuk menentukan posisi Anda.');
+            if (!viewMode) {
+                Alert.alert('Izin Lokasi', 'Diperlukan izin lokasi untuk menentukan posisi Anda.');
+            }
         }
     };
 
@@ -69,19 +77,30 @@ export default function MapEmergencyScreen() {
 
             const { latitude, longitude } = position;
             const newLoc = { lat: latitude, lng: longitude };
-            setCurrentLocation(newLoc);
-            setSelectedLocation(newLoc);
 
-            // Initial coordinate display
-            setAddress(`Lat: ${latitude.toFixed(5)}, Long: ${longitude.toFixed(5)}`);
+            setUserLocation(newLoc);
 
-            // Center map
+            if (!viewMode) {
+                setCurrentLocation(newLoc);
+                setSelectedLocation(newLoc);
+                setAddress(`Lat: ${latitude.toFixed(5)}, Long: ${longitude.toFixed(5)}`);
+            }
+
+            // Center map or Draw Route
             if (webViewRef.current) {
-                webViewRef.current.postMessage(JSON.stringify({ type: 'CENTER_MAP', lat: latitude, lng: longitude }));
+                if (viewMode && initialLocation) {
+                    webViewRef.current.postMessage(JSON.stringify({
+                        type: 'DRAW_ROUTE',
+                        userLoc: newLoc,
+                        targetLoc: initialLocation
+                    }));
+                } else {
+                    webViewRef.current.postMessage(JSON.stringify({ type: 'CENTER_MAP', lat: latitude, lng: longitude }));
+                }
             }
         } catch (error: any) {
             if (error.code !== 'CANCELLED' && !error.message?.includes('cancelled')) {
-                Alert.alert('Gagal', 'Tidak dapat mendapatkan lokasi saat ini: ' + error.message);
+                console.log('Location error:', error.message);
             }
         } finally {
             setLoading(false);
@@ -99,7 +118,7 @@ export default function MapEmergencyScreen() {
         }
     };
 
-    // HTML Content for Leaflet Map - Cooler Design
+    // HTML Content for Leaflet Map - Cooler Design with Routing
     const mapHtml = `
       <!DOCTYPE html>
       <html>
@@ -117,6 +136,7 @@ export default function MapEmergencyScreen() {
             transform: translate(-50%, -100%);
             z-index: 999;
             pointer-events: none;
+            display: ${viewMode ? 'none' : 'block'};
           }
           .marker-svg {
             width: 40px;
@@ -138,6 +158,7 @@ export default function MapEmergencyScreen() {
             transform: translate(-50%, 0);
             z-index: 998;
             animation: shadow 0.5s infinite alternate;
+            display: ${viewMode ? 'none' : 'block'};
           }
           @keyframes shadow {
             from { width: 16px; opacity: 0.4; }
@@ -165,14 +186,69 @@ export default function MapEmergencyScreen() {
             attribution: ''
           }).addTo(map);
 
+          var routeLayer;
+          var userMarker;
+          var targetMarker;
+
           map.on('moveend', function() {
-            var center = map.getCenter();
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'UPDATE_LOCATION',
-              lat: center.lat,
-              lng: center.lng
-            }));
+            if (${!viewMode}) {
+                var center = map.getCenter();
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'UPDATE_LOCATION',
+                lat: center.lat,
+                lng: center.lng
+                }));
+            }
           });
+
+          function drawRoute(userLoc, targetLoc) {
+            if (routeLayer) map.removeLayer(routeLayer);
+            if (userMarker) map.removeLayer(userMarker);
+            if (targetMarker) map.removeLayer(targetMarker);
+
+            // Add Markers
+            userMarker = L.circleMarker([userLoc.lat, userLoc.lng], {
+                radius: 8,
+                fillColor: "#3B82F6",
+                color: "#FFF",
+                weight: 3,
+                opacity: 1,
+                fillOpacity: 1
+            }).addTo(map).bindPopup("Lokasi Anda");
+
+            targetMarker = L.marker([targetLoc.lat, targetLoc.lng]).addTo(map).bindPopup("Titik Darurat").openPopup();
+
+            // Fetch Route from OSRM
+            var url = 'https://router.project-osrm.org/route/v1/driving/' + 
+                      userLoc.lng + ',' + userLoc.lat + ';' + 
+                      targetLoc.lng + ',' + targetLoc.lat + 
+                      '?overview=full&geometries=geojson';
+
+            fetch(url)
+              .then(response => response.json())
+              .then(data => {
+                if (data.routes && data.routes.length > 0) {
+                  var route = data.routes[0];
+                  var coordinates = route.geometry.coordinates.map(c => [c[1], c[0]]);
+                  
+                  routeLayer = L.polyline(coordinates, {
+                    color: '#E11D48',
+                    weight: 6,
+                    opacity: 0.8,
+                    lineJoin: 'round'
+                  }).addTo(map);
+
+                  map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+
+                  // Send Info Back
+                  window.ReactNativeWebView.postMessage(JSON.stringify({
+                    type: 'ROUTE_INFO',
+                    distance: (route.distance / 1000).toFixed(1) + ' km',
+                    duration: Math.round(route.duration / 60) + ' mnt'
+                  }));
+                }
+              });
+          }
 
           document.addEventListener('message', function(event) {
              handleMessage(event);
@@ -186,6 +262,8 @@ export default function MapEmergencyScreen() {
                 var data = JSON.parse(event.data);
                 if (data.type === 'CENTER_MAP') {
                     map.setView([data.lat, data.lng], 18);
+                } else if (data.type === 'DRAW_ROUTE') {
+                    drawRoute(data.userLoc, data.targetLoc);
                 }
             } catch(e) {}
           }
@@ -201,7 +279,7 @@ export default function MapEmergencyScreen() {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
                     <Icon name="chevron-back" size={24} color="#0F172A" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{viewMode ? 'LIHAT LOKASI DARURAT' : 'KONFIRMASI LOKASI DARURAT'}</Text>
+                <Text style={styles.headerTitle}>{viewMode ? 'RUTE MENUJU LOKASI' : 'KONFIRMASI LOKASI DARURAT'}</Text>
             </View>
 
             <View style={styles.mapContainer}>
@@ -216,6 +294,8 @@ export default function MapEmergencyScreen() {
                             if (data.type === 'UPDATE_LOCATION') {
                                 setSelectedLocation({ lat: data.lat, lng: data.lng });
                                 setAddress(`Lat: ${data.lat.toFixed(5)}, Long: ${data.lng.toFixed(5)}`);
+                            } else if (data.type === 'ROUTE_INFO') {
+                                setRouteInfo({ distance: data.distance, duration: data.duration });
                             }
                         } catch (e) { }
                     }}
@@ -229,24 +309,44 @@ export default function MapEmergencyScreen() {
 
             {/* Premium Control Panel */}
             <View style={styles.footer}>
-                <View style={styles.footerBadge}>
+                <View style={[styles.footerBadge, viewMode && { backgroundColor: '#EFF6FF', borderColor: '#3B82F6', borderLeftWidth: 3 }]}>
                     <View style={[styles.locStatusDot, viewMode && { backgroundColor: '#3B82F6' }]} />
                     <Text style={[styles.footerBadgeText, viewMode && { color: '#3B82F6' }]}>
-                        {viewMode ? 'KOORDINAT KEJADIAN' : 'TITIK KEJADIAN TERPILIH'}
+                        {viewMode ? 'PELACAKAN RUTE AKTIF' : 'TITIK KEJADIAN TERPILIH'}
                     </Text>
                 </View>
 
-                <View style={styles.detailRow}>
-                    <View style={styles.detailIconBox}>
-                        <Icon name="navigate" size={20} color="#E11D48" />
+                {viewMode && routeInfo ? (
+                    <View style={styles.routeInfoContainer}>
+                        <View style={styles.routeItem}>
+                            <Icon name="navigate-outline" size={20} color="#E11D48" />
+                            <View>
+                                <Text style={styles.routeLabel}>JARAK</Text>
+                                <Text style={styles.routeValue}>{routeInfo.distance}</Text>
+                            </View>
+                        </View>
+                        <View style={styles.routeDivider} />
+                        <View style={styles.routeItem}>
+                            <Icon name="time-outline" size={20} color="#E11D48" />
+                            <View>
+                                <Text style={styles.routeLabel}>ESTIMASI</Text>
+                                <Text style={styles.routeValue}>{routeInfo.duration}</Text>
+                            </View>
+                        </View>
                     </View>
-                    <View style={styles.detailContent}>
-                        <Text style={styles.label}>Koordinat Presisi</Text>
-                        <Text style={styles.coordText}>
-                            {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
-                        </Text>
+                ) : (
+                    <View style={styles.detailRow}>
+                        <View style={styles.detailIconBox}>
+                            <Icon name="location" size={20} color="#E11D48" />
+                        </View>
+                        <View style={styles.detailContent}>
+                            <Text style={styles.label}>Koordinat Presisi</Text>
+                            <Text style={styles.coordText}>
+                                {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
+                            </Text>
+                        </View>
                     </View>
-                </View>
+                )}
 
                 <TouchableOpacity
                     style={[styles.confirmBtn, viewMode && { backgroundColor: '#0F172A', shadowColor: '#0F172A' }]}
@@ -426,6 +526,38 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         borderWidth: 1,
         borderColor: '#F1F5F9',
+    },
+    routeInfoContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8FAFC',
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        marginBottom: 20,
+        gap: 15,
+    },
+    routeItem: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    routeDivider: {
+        width: 1,
+        height: 30,
+        backgroundColor: '#E2E8F0',
+    },
+    routeLabel: {
+        fontSize: 9,
+        fontWeight: '900',
+        color: '#94A3B8',
+        letterSpacing: 1,
+    },
+    routeValue: {
+        fontSize: 16,
+        fontWeight: '900',
+        color: '#0F172A',
     },
     loader: {
         ...StyleSheet.absoluteFillObject,

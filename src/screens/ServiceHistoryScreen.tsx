@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -8,152 +8,75 @@ import {
     TextInput,
     Platform,
     StatusBar,
+    ActivityIndicator,
+    RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-
-interface HistoryItem {
-    id: string;
-    title: string;
-    description: string;
-    status: 'DIPROSES' | 'DIAJUKAN' | 'SELESAI' | 'DITOLAK';
-    date: string;
-    reqId: string;
-    icon: string;
-    iconBg: string;
-    iconColor: string;
-    meta?: string;
-    metaIcon?: string;
-    metaColor?: string;
-}
-
-const DUMMY_DATA: HistoryItem[] = [
-    {
-        id: '1',
-        title: 'Pembuatan E-KTP Baru',
-        description: 'Permohonan cetak ulang KTP karena patah.',
-        status: 'DIPROSES',
-        date: '12 Okt 2023',
-        reqId: '#REQ-9921',
-        icon: 'id-card-outline',
-        iconBg: '#EFF6FF',
-        iconColor: '#3B82F6',
-    },
-    {
-        id: '2',
-        title: 'Pecah Kartu Keluarga',
-        description: 'Pemisahan KK untuk anggota keluarga baru.',
-        status: 'DIAJUKAN',
-        date: '10 Okt 2023',
-        reqId: '#REQ-8750',
-        icon: 'people-outline',
-        iconBg: '#FFFBEB',
-        iconColor: '#D97706',
-    },
-    {
-        id: '3',
-        title: 'Akta Kelahiran',
-        description: 'Penerbitan akta kelahiran anak ke-2.',
-        status: 'SELESAI',
-        date: '25 Sep 2023',
-        reqId: '#REQ-6542',
-        icon: ' receipt-outline',
-        iconBg: '#F0FDF4',
-        iconColor: '#10B981',
-        meta: 'Diambil',
-        metaIcon: 'checkmark-circle',
-        metaColor: '#10B981',
-    },
-    {
-        id: '4',
-        title: 'Surat Izin Usaha (IUMK)',
-        description: 'Izin usaha mikro kecil sektor kuliner.',
-        status: 'SELESAI',
-        date: '14 Ags 2023',
-        reqId: '#REQ-4321',
-        icon: 'storefront-outline',
-        iconBg: '#F0FDF4',
-        iconColor: '#10B981',
-        meta: 'Digital',
-        metaIcon: 'checkmark-circle',
-        metaColor: '#10B981',
-    },
-    {
-        id: '5',
-        title: 'Surat Pindah Domisili',
-        description: 'Dokumen pendukung kurang lengkap.',
-        status: 'DITOLAK',
-        date: '01 Jul 2023',
-        reqId: '#REQ-1102',
-        icon: 'location-outline',
-        iconBg: '#FEF2F2',
-        iconColor: '#EF4444',
-        meta: 'Perlu Revisi',
-        metaIcon: 'alert-circle',
-        metaColor: '#EF4444',
-    },
-];
-
-const CATEGORIES = ['Semua', 'Dalam Proses', 'Selesai', 'Ditolak'];
+import useLayananStore from '../stores/layananStore';
 
 export default function ServiceHistoryScreen() {
     const navigation = useNavigation();
-    const [activeTab, setActiveTab] = useState('Semua');
+    const { layanan, loading, fetchLayanan } = useLayananStore();
     const [searchQuery, setSearchQuery] = useState('');
+    const [refreshing, setRefreshing] = useState(false);
 
-    const getStatusStyle = (status: string) => {
-        switch (status) {
-            case 'DIPROSES':
-                return { bg: '#EFF6FF', text: '#3B82F6' };
-            case 'DIAJUKAN':
-                return { bg: '#FFFBEB', text: '#D97706' };
-            case 'SELESAI':
-                return { bg: '#F0FDF4', text: '#10B981' };
-            case 'DITOLAK':
-                return { bg: '#FEF2F2', text: '#EF4444' };
-            default:
-                return { bg: '#F1F5F9', text: '#64748B' };
-        }
+    useEffect(() => {
+        fetchLayanan({ page: 0, size: 100 });
+    }, []);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await fetchLayanan({ page: 0, size: 100 });
+        setRefreshing(false);
     };
 
-    const filteredItems = DUMMY_DATA.filter(item => {
-        const matchesTab = activeTab === 'Semua' ||
-            (activeTab === 'Dalam Proses' && (item.status === 'DIPROSES' || item.status === 'DIAJUKAN')) ||
-            (activeTab === 'Selesai' && item.status === 'SELESAI') ||
-            (activeTab === 'Ditolak' && item.status === 'DITOLAK');
+    const filteredItems = layanan.filter(item => {
+        const matchesSearch =
+            item.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.deskripsi?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.dinasNama?.toLowerCase().includes(searchQuery.toLowerCase());
 
-        const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.reqId.toLowerCase().includes(searchQuery.toLowerCase());
-
-        return matchesTab && matchesSearch;
+        return matchesSearch;
     });
+
+    const getServiceIcon = (nama: string): string => {
+        const namaLower = nama.toLowerCase();
+        if (namaLower.includes('pendidikan') || namaLower.includes('sekolah')) return 'school-outline';
+        if (namaLower.includes('kesehatan') || namaLower.includes('rumah sakit')) return 'medical-outline';
+        if (namaLower.includes('ktp') || namaLower.includes('identitas')) return 'id-card-outline';
+        if (namaLower.includes('keluarga') || namaLower.includes('kk')) return 'people-outline';
+        if (namaLower.includes('izin') || namaLower.includes('perizinan')) return 'document-text-outline';
+        if (namaLower.includes('pajak')) return 'cash-outline';
+        if (namaLower.includes('pertanian') || namaLower.includes('pangan')) return 'leaf-outline';
+        if (namaLower.includes('transportasi') || namaLower.includes('jalan')) return 'car-outline';
+        if (namaLower.includes('lingkungan')) return 'earth-outline';
+        return 'clipboard-outline';
+    };
+
+    const getServiceColor = (index: number) => {
+        const colors = [
+            { bg: '#EFF6FF', color: '#3B82F6' },
+            { bg: '#F0FDF4', color: '#10B981' },
+            { bg: '#FFFBEB', color: '#F59E0B' },
+            { bg: '#FEF2F2', color: '#EF4444' },
+            { bg: '#F5F3FF', color: '#8B5CF6' },
+            { bg: '#FDF4FF', color: '#D946EF' },
+        ];
+        return colors[index % colors.length];
+    };
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Icon name="arrow-back" size={24} color="#0F172A" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Riwayat Layanan</Text>
-                <TouchableOpacity style={styles.headerBtn}>
-                    <Icon name="options-outline" size={24} color="#0F172A" />
-                </TouchableOpacity>
-            </View>
-
-            {/* Tabs */}
-            <View style={styles.tabBar}>
-                {CATEGORIES.map(cat => (
-                    <TouchableOpacity
-                        key={cat}
-                        style={[styles.tabItem, activeTab === cat && styles.activeTabItem]}
-                        onPress={() => setActiveTab(cat)}
-                    >
-                        <Text style={[styles.tabText, activeTab === cat && styles.activeTabText]}>{cat}</Text>
-                    </TouchableOpacity>
-                ))}
+                <Text style={styles.headerTitle}>Daftar Layanan</Text>
+                <View style={styles.headerBtn} />
             </View>
 
             {/* Search Bar */}
@@ -162,11 +85,16 @@ export default function ServiceHistoryScreen() {
                     <Icon name="search-outline" size={20} color="#94A3B8" />
                     <TextInput
                         style={styles.searchInput}
-                        placeholder="Cari nomor tiket atau layanan..."
+                        placeholder="Cari layanan atau dinas..."
                         placeholderTextColor="#94A3B8"
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                     />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearchQuery('')}>
+                            <Icon name="close-circle" size={20} color="#94A3B8" />
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
 
@@ -174,57 +102,107 @@ export default function ServiceHistoryScreen() {
                 style={styles.content}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FFB800']} />
+                }
             >
-                {filteredItems.map(item => {
-                    const statusStyle = getStatusStyle(item.status);
-                    return (
-                        <TouchableOpacity key={item.id} style={styles.card}>
-                            <View style={[styles.iconContainer, { backgroundColor: item.iconBg }]}>
-                                <Icon name={item.icon} size={24} color={item.iconColor} />
-                            </View>
-
-                            <View style={styles.cardContent}>
-                                <View style={styles.cardHeader}>
-                                    <Text style={styles.cardTitle}>{item.title}</Text>
-                                    <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                                        <Text style={[styles.statusText, { color: statusStyle.text }]}>{item.status}</Text>
-                                    </View>
-                                </View>
-
-                                <Text style={styles.cardDesc} numberOfLines={1}>{item.description}</Text>
-
-                                <View style={styles.cardFooter}>
-                                    <View style={styles.footerRow}>
-                                        <View style={styles.metaItem}>
-                                            <Icon name="calendar-outline" size={14} color="#94A3B8" />
-                                            <Text style={styles.metaText}>{item.date}</Text>
-                                        </View>
-                                        <View style={styles.metaItem}>
-                                            <Icon name="copy-outline" size={14} color="#94A3B8" />
-                                            <Text style={styles.metaText}>{item.reqId}</Text>
-                                        </View>
-                                    </View>
-
-                                    {item.meta && (
-                                        <View style={styles.metaBadge}>
-                                            {item.metaIcon && <Icon name={item.metaIcon} size={14} color={item.metaColor} />}
-                                            <Text style={[styles.metaBadgeText, { color: item.metaColor }]}>{item.meta}</Text>
-                                        </View>
-                                    )}
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-                    );
-                })}
-
-                {filteredItems.length === 0 && (
-                    <View style={styles.emptyContainer}>
-                        <Icon name="document-text-outline" size={64} color="#CBD5E1" />
-                        <Text style={styles.emptyText}>Tidak ada riwayat ditemukan</Text>
+                {loading && !refreshing && layanan.length === 0 ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color="#FFB800" />
+                        <Text style={styles.loadingText}>Memuat layanan...</Text>
                     </View>
+                ) : filteredItems.length === 0 ? (
+                    <View style={styles.emptyContainer}>
+                        <View style={styles.emptyIconCircle}>
+                            <Icon name="search-outline" size={48} color="#CBD5E1" />
+                        </View>
+                        <Text style={styles.emptyTitle}>
+                            {searchQuery ? 'Tidak Ditemukan' : 'Belum Ada Layanan'}
+                        </Text>
+                        <Text style={styles.emptyText}>
+                            {searchQuery ? 'Coba kata kunci lain' : 'Belum ada layanan tersedia'}
+                        </Text>
+                    </View>
+                ) : (
+                    <>
+                        {filteredItems.map((item, index) => {
+                            if (!item || !item.id) return null;
+
+                            const iconColor = getServiceColor(index);
+                            const serviceIcon = getServiceIcon(item.nama || '');
+                            const hasEstimasi = item.estimasiWaktu && typeof item.estimasiWaktu === 'number' && item.estimasiWaktu > 0;
+                            const hasPhone = item.phoneNumber && String(item.phoneNumber).length > 0;
+
+                            return (
+                                <TouchableOpacity key={`service-${item.id}`} style={styles.card}>
+                                    {/* Icon Section */}
+                                    <View style={[styles.iconContainer, { backgroundColor: iconColor.bg }]}>
+                                        <Icon name={serviceIcon} size={24} color={iconColor.color} />
+                                    </View>
+
+                                    <View style={styles.cardContent}>
+                                        {/* Header with Title */}
+                                        <Text style={styles.cardTitle} numberOfLines={2}>
+                                            {item.nama ? String(item.nama) : 'Layanan'}
+                                        </Text>
+
+                                        {/* Description */}
+                                        <Text style={styles.cardDesc} numberOfLines={2}>
+                                            {item.deskripsi ? String(item.deskripsi) : 'Tidak ada deskripsi'}
+                                        </Text>
+
+                                        {/* Dinas Badge */}
+                                        {item.dinasNama ? (
+                                            <View style={styles.dinasBadge}>
+                                                <Icon name="business-outline" size={12} color="#64748B" />
+                                                <Text style={styles.dinasText} numberOfLines={1}>
+                                                    {String(item.dinasNama)}
+                                                </Text>
+                                            </View>
+                                        ) : null}
+
+                                        {/* Footer with Meta Info */}
+                                        <View style={styles.cardFooter}>
+                                            <View style={styles.metaRow}>
+                                                {hasEstimasi ? (
+                                                    <View style={styles.metaItem}>
+                                                        <Icon name="time-outline" size={13} color="#64748B" />
+                                                        <Text style={styles.metaText}>
+                                                            {String(item.estimasiWaktu)} hari
+                                                        </Text>
+                                                    </View>
+                                                ) : null}
+                                                {hasPhone ? (
+                                                    <View style={styles.metaItem}>
+                                                        {hasEstimasi ? <View style={styles.metaDivider} /> : null}
+                                                        <Icon name="call-outline" size={13} color="#64748B" />
+                                                        <Text style={styles.metaText}>Kontak</Text>
+                                                    </View>
+                                                ) : null}
+                                            </View>
+
+                                            <TouchableOpacity style={styles.detailBtn}>
+                                                <Text style={styles.detailBtnText}>Detail</Text>
+                                                <Icon name="chevron-forward" size={16} color="#FFB800" />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+
+                        {filteredItems.length > 0 ? (
+                            <View style={styles.footerContainer}>
+                                <View style={styles.footerDivider} />
+                                <Text style={styles.footerText}>
+                                    {'Menampilkan ' + String(filteredItems.length) + ' layanan'}
+                                </Text>
+                            </View>
+                        ) : null}
+                    </>
                 )}
 
-                <Text style={styles.listFooterText}>Menampilkan {filteredItems.length} layanan terakhir</Text>
+                <View style={{ height: 20 }} />
             </ScrollView>
         </View>
     );
@@ -233,7 +211,7 @@ export default function ServiceHistoryScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#F8FAFC',
     },
     header: {
         flexDirection: 'row',
@@ -243,6 +221,8 @@ const styles = StyleSheet.create({
         paddingTop: Platform.OS === 'ios' ? 50 : 20,
         paddingBottom: 16,
         backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
     },
     headerBtn: {
         width: 40,
@@ -255,41 +235,18 @@ const styles = StyleSheet.create({
         fontWeight: "900",
         color: "#0F172A",
     },
-    tabBar: {
-        flexDirection: 'row',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F1F5F9',
-        paddingHorizontal: 8,
-    },
-    tabItem: {
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-        marginHorizontal: 4,
-        borderBottomWidth: 2,
-        borderBottomColor: 'transparent',
-    },
-    activeTabItem: {
-        borderBottomColor: '#FFB800',
-    },
-    tabText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#64748B',
-    },
-    activeTabText: {
-        color: '#0F172A',
-    },
     searchContainer: {
         padding: 16,
         backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
     },
     searchBox: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#F8FAFC',
         borderWidth: 1,
         borderColor: '#E2E8F0',
-        borderRadius: 4,
         paddingHorizontal: 12,
         height: 48,
     },
@@ -302,103 +259,152 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
-        backgroundColor: '#FCFDFF',
     },
     scrollContent: {
-        paddingBottom: 40,
+        paddingBottom: 20,
+    },
+    loadingContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 80,
+    },
+    loadingText: {
+        marginTop: 16,
+        fontSize: 14,
+        color: '#64748B',
+        fontWeight: '600',
     },
     card: {
         flexDirection: 'row',
         padding: 16,
+        marginHorizontal: 16,
+        marginTop: 16,
         backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#F1F5F9',
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        elevation: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
     },
     iconContainer: {
         width: 48,
         height: 48,
-        borderRadius: 4,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 16,
+        marginRight: 12,
     },
     cardContent: {
         flex: 1,
     },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
     cardTitle: {
         fontSize: 15,
         fontWeight: '900',
-        color: '#1E293B',
-        flex: 1,
-        marginRight: 8,
-    },
-    statusBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 2,
-    },
-    statusText: {
-        fontSize: 10,
-        fontWeight: '900',
+        color: '#0F172A',
+        lineHeight: 20,
+        marginBottom: 6,
     },
     cardDesc: {
         fontSize: 13,
         color: '#64748B',
         fontWeight: '500',
-        marginBottom: 12,
+        lineHeight: 18,
+        marginBottom: 8,
+    },
+    dinasBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFBEB',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        alignSelf: 'flex-start',
+        marginBottom: 8,
+        borderWidth: 1,
+        borderColor: '#FEF3C7',
+    },
+    dinasText: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: '#D97706',
+        textTransform: 'uppercase',
+        marginLeft: 4,
     },
     cardFooter: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
-    footerRow: {
+    metaRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
     },
     metaItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        marginRight: 8,
+    },
+    metaDivider: {
+        width: 1,
+        height: 12,
+        backgroundColor: '#E2E8F0',
     },
     metaText: {
         fontSize: 11,
-        color: '#94A3B8',
+        color: '#64748B',
         fontWeight: '700',
+        marginLeft: 4,
     },
-    metaBadge: {
+    detailBtn: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
     },
-    metaBadgeText: {
-        fontSize: 11,
+    detailBtnText: {
+        fontSize: 12,
         fontWeight: '900',
+        color: '#FFB800',
     },
     emptyContainer: {
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 60,
+        paddingVertical: 80,
+        paddingHorizontal: 40,
+    },
+    emptyIconCircle: {
+        width: 96,
+        height: 96,
+        borderRadius: 48,
+        backgroundColor: '#F8FAFC',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    emptyTitle: {
+        fontSize: 16,
+        fontWeight: '900',
+        color: '#0F172A',
+        marginBottom: 8,
     },
     emptyText: {
-        marginTop: 16,
-        fontSize: 14,
+        fontSize: 13,
         color: '#94A3B8',
         fontWeight: '600',
-    },
-    listFooterText: {
         textAlign: 'center',
+    },
+    footerContainer: {
+        marginTop: 32,
+        alignItems: 'center',
+    },
+    footerDivider: {
+        width: 60,
+        height: 2,
+        backgroundColor: '#E2E8F0',
+        marginBottom: 12,
+    },
+    footerText: {
         fontSize: 12,
         color: '#94A3B8',
         fontWeight: '700',
-        marginTop: 24,
-        letterSpacing: 0.5,
+        letterSpacing: 0.3,
     },
 });

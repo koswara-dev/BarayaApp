@@ -19,8 +19,9 @@ export const useAuthActions = () => {
             // 1. API Call: Send credentials to the server
             const response = await api.post("/auth/login", credentials);
 
-            // 2. Extract token from response
+            // 2. Extract token and refreshToken from response
             const token = response.data?.data?.token;
+            const refreshToken = response.data?.data?.refreshToken;
 
             if (!token) {
                 return {
@@ -31,10 +32,10 @@ export const useAuthActions = () => {
 
             // 3. State Update: Use the token to update the Zustand store
             if (autoSignIn) {
-                signIn(token);
+                signIn(token, refreshToken);
             }
 
-            return { success: true, data: { ...response.data?.data, token } };
+            return { success: true, data: { ...response.data?.data, token, refreshToken } };
         } catch (error: any) {
             // Log for debugging (using console.log instead of console.error to avoid LogBox popup)
             // console.log("Login failed:", error.response?.data || error.message);

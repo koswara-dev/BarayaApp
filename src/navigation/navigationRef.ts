@@ -15,9 +15,15 @@ export function navigate<RouteName extends keyof RootStackParamList>(
 
 export function reset(name: keyof RootStackParamList) {
     if (navigationRef.isReady()) {
-        navigationRef.reset({
-            index: 0,
-            routes: [{ name }],
-        });
+        try {
+            navigationRef.reset({
+                index: 0,
+                routes: [{ name: name as any }],
+            });
+        } catch (error) {
+            console.error('Navigation reset error:', error);
+            // Fallback: try to navigate directly
+            navigationRef.navigate(name as any);
+        }
     }
 }

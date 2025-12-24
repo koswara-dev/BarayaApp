@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -9,23 +9,101 @@ import {
     TextInput,
     StatusBar,
     SafeAreaView,
-    Dimensions
+    Dimensions,
+    ActivityIndicator,
+    RefreshControl,
+    processColor,
+    ProcessedColorValue
 } from 'react-native';
+import api, { getImageUrl } from '../config/api';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+import { LineChart, BarChart, PieChart } from 'react-native-charts-wrapper';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
 import useAuthStore from '../stores/authStore';
 import useUserStore from '../stores/userStore';
 
 const { width } = Dimensions.get('window');
 
-export default function AdminDashboardScreen() {
-    const user = useAuthStore((state) => state.user);
-    const { profile } = useUserStore();
+interface StatsResponse {
+    success: boolean;
+    data: {
+        totalDinas: number;
+        totalLayanan: number;
+        totalEvent: number;
+        totalNotifikasiDarurat: number;
+        totalUser: number;
+        top5DinasLayanan: any[];
+        top5DinasFeedback: any[];
+        top5DinasEvent: any[];
+        top5DinasNotifikasi: any[];
+        top5LayananFeedback: any[];
+        top5LayananLeastFeedback: any[];
+        feedbackPerStatus: { status: string; count: number }[];
+        notifikasiPerStatus: { status: string; count: number }[];
+        userRegistrationHistory: any[];
+    };
+}
 
-    const stats = [
-        { label: 'PENGADUAN MASUK', count: 12, badge: '+5', color: '#EF4444', icon: 'chatbox' },
-        { label: 'DALAM PROSES', count: 28, badge: '--', color: '#F59E0B', icon: 'time' },
-        { label: 'SELESAI HARI INI', count: 45, badge: '98%', color: '#10B981', icon: 'checkmark-circle' },
+export default function AdminDashboardScreen() {
+    const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+    const user = useAuthStore((state) => state.user);
+    const { profile, fetchUserProfile } = useUserStore();
+
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [statsData, setStatsData] = useState<StatsResponse['data'] | null>(null);
+
+    const fetchStats = useCallback(async () => {
+        try {
+            const response = await api.get<StatsResponse>('/statistik');
+            if (response.data.success) {
+                setStatsData(response.data.data);
+            }
+        } catch (error) {
+            console.error('Error fetching stats:', error);
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchStats();
+        if (user?.id) {
+            fetchUserProfile(user.id);
+        }
+    }, [fetchStats, user?.id, fetchUserProfile]);
+
+    const onRefresh = useCallback(() => {
+        setRefreshing(true);
+        fetchStats();
+    }, [fetchStats]);
+
+    const topStats = [
+        {
+            label: 'LAYANAN',
+            count: statsData?.totalLayanan || 0,
+            badge: statsData?.totalDinas ? `${statsData.totalDinas} Dinas` : '--',
+            color: '#3B82F6',
+            icon: 'grid'
+        },
+        {
+            label: 'PENGADUAN',
+            count: statsData?.feedbackPerStatus.reduce((acc, curr) => acc + curr.count, 0) || 0,
+            badge: statsData?.feedbackPerStatus.find(s => s.status === 'pending')?.count ? `+${statsData.feedbackPerStatus.find(s => s.status === 'pending')?.count}` : '--',
+            color: '#F59E0B',
+            icon: 'chatbubbles'
+        },
+        {
+            label: 'DARURAT',
+            count: statsData?.totalNotifikasiDarurat || 0,
+            badge: statsData?.notifikasiPerStatus.find(s => s.status === 'pending')?.count ? `${statsData.notifikasiPerStatus.find(s => s.status === 'pending')?.count} New` : '--',
+            color: '#EF4444',
+            icon: 'alert-circle'
+        },
     ];
 
     const modules = [
@@ -65,6 +143,16 @@ export default function AdminDashboardScreen() {
         }
     ];
 
+    const getTimeGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour >= 5 && hour < 11) return 'Selamat Pagi';
+        if (hour >= 11 && hour < 15) return 'Selamat Siang';
+        if (hour >= 15 && hour < 18) return 'Selamat Sore';
+        return 'Selamat Malam';
+    };
+
+    const greeting = getTimeGreeting();
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
@@ -72,63 +160,328 @@ export default function AdminDashboardScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                    <View style={styles.logoBox}>
-                        <Text style={styles.logoText}>KAB</Text>
-                        <Text style={styles.logoText}>KNG</Text>
-                    </View>
+                    {profile?.urlFoto ? (
+                        <Image
+                            source={{ uri: getImageUrl(profile.urlFoto) }}
+                            style={styles.avatarMain}
+                        />
+                    ) : (
+                        <View style={[styles.avatarMain, { justifyContent: 'center', alignItems: 'center' }]}>
+                            <Icon name="person" size={30} color="#CBD5E1" />
+                        </View>
+                    )}
                     <View style={styles.titleContainer}>
-                        <Text style={styles.headerTitle}>Dashboard Internal</Text>
-                        <Text style={styles.headerSubtitle}>KUNINGAN SMART SERVICE</Text>
+                        <Text style={styles.headerGreeting}>{greeting},</Text>
+                        <Text style={styles.headerTitle}>{user?.fullName || 'Admin'}</Text>
+                        <View style={styles.subtitleContainer}>
+                            <View style={styles.roleBadge}>
+                                <Text style={styles.roleBadgeText}>{(user?.role || 'Staff').toUpperCase()}</Text>
+                            </View>
+                            <Text style={styles.headerDinasText}>Dinas Kependudukan</Text>
+                        </View>
                     </View>
                 </View>
                 <View style={styles.headerRight}>
-                    <TouchableOpacity style={styles.iconButton}>
-                        <Icon name="notifications" size={24} color="#64748B" />
+                    <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={() => navigation.navigate('Notifikasi')}
+                    >
+                        <Icon name="notifications" size={28} color="#64748B" />
                         <View style={styles.notifBadge} />
                     </TouchableOpacity>
-                    <Image
-                        source={{ uri: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80' }}
-                        style={styles.avatar}
-                    />
                 </View>
             </View>
 
-            <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-                {/* Greeting */}
-                <View style={styles.greetingSection}>
-                    <Text style={styles.greetingName}>Halo, {user?.fullName || 'Admin'}</Text>
-                    <Text style={styles.greetingRole}>
-                        {(user?.role || 'Staff').charAt(0).toUpperCase() + (user?.role || 'Staff').slice(1).toLowerCase()} - Kuningan Smart Service
-                    </Text>
-                </View>
-
-                {/* Search */}
-                <View style={styles.searchContainer}>
-                    <Icon name="search-outline" size={20} color="#94A3B8" />
-                    <TextInput
-                        placeholder="Cari layanan, nomor tiket, atau laporan..."
-                        placeholderTextColor="#94A3B8"
-                        style={styles.searchInput}
-                    />
-                </View>
+            <ScrollView
+                style={styles.container}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FFB800']} />
+                }
+            >
+                <View style={{ height: 20 }} />
 
                 {/* Stats Row */}
                 <View style={styles.statsRow}>
-                    {stats.map((stat, idx) => (
+                    {topStats.map((stat, idx) => (
                         <View key={idx} style={styles.statCard}>
                             <View style={styles.statTop}>
                                 <View style={[styles.statIconBox, { backgroundColor: stat.color + '15' }]}>
                                     <Icon name={stat.icon} size={18} color={stat.color} />
                                 </View>
-                                <View style={[styles.statBadge, { backgroundColor: stat.color + '10' }]}>
-                                    <Text style={[styles.statBadgeText, { color: stat.color }]}>{stat.badge}</Text>
-                                </View>
+                                {stat.badge !== '--' && (
+                                    <View style={[styles.statBadge, { backgroundColor: stat.color + '10' }]}>
+                                        <Text style={[styles.statBadgeText, { color: stat.color }]}>{stat.badge}</Text>
+                                    </View>
+                                )}
                             </View>
                             <Text style={styles.statCount}>{stat.count}</Text>
                             <Text style={styles.statLabel}>{stat.label}</Text>
                         </View>
                     ))}
                 </View>
+
+                {/* Detailed Stats Sections */}
+                {statsData && (
+                    <>
+                        {/* Summary Section */}
+                        <View style={styles.summaryBg}>
+                            <Text style={styles.summaryTitle}>Ringkasan Sistem</Text>
+                            <View style={styles.summaryRow}>
+                                <View style={styles.summaryItem}>
+                                    <Text style={styles.summaryValue}>{statsData.totalUser}</Text>
+                                    <Text style={styles.summaryLabel}>Total Pengguna</Text>
+                                </View>
+                                <View style={styles.dividerVertical} />
+                                <View style={styles.summaryItem}>
+                                    <Text style={styles.summaryValue}>{statsData.totalEvent}</Text>
+                                    <Text style={styles.summaryLabel}>Total Event</Text>
+                                </View>
+                                <View style={styles.dividerVertical} />
+                                <View style={styles.summaryItem}>
+                                    <Text style={styles.summaryValue}>{statsData.totalLayanan}</Text>
+                                    <Text style={styles.summaryLabel}>Total Layanan</Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Registration History Chart */}
+                        <View style={styles.sectionHeader}>
+                            <View style={[styles.sectionIndicator, { backgroundColor: '#10B981' }]} />
+                            <Text style={styles.sectionTitle}>Riwayat Registrasi User</Text>
+                        </View>
+                        <View style={styles.chartContainer}>
+                            <LineChart
+                                style={styles.chart}
+                                data={{
+                                    dataSets: [{
+                                        values: (statsData.userRegistrationHistory || []).slice(-7).map(h => ({ y: Number(h.count || 0) })),
+                                        label: 'Registrasi User',
+                                        config: {
+                                            lineWidth: 2,
+                                            drawCircles: true,
+                                            circleRadius: 5,
+                                            circleColor: processColor('#10B981'),
+                                            color: processColor('#10B981'),
+                                            drawFilled: true,
+                                            fillColor: processColor('#10B981'),
+                                            fillAlpha: 50,
+                                            valueTextSize: 10,
+                                            valueFormatter: "###",
+                                        }
+                                    }]
+                                }}
+                                xAxis={{
+                                    valueFormatter: statsData.userRegistrationHistory.slice(-5).map(h => h.date.split('-').slice(2).join('/')),
+                                    position: 'BOTTOM',
+                                    granularityEnabled: true,
+                                    granularity: 1,
+                                    drawGridLines: false,
+                                }}
+                                yAxis={{
+                                    left: {
+                                        drawGridLines: true,
+                                        gridColor: processColor('#F1F5F9'),
+                                        granularityEnabled: true,
+                                        granularity: 1,
+                                    },
+                                    right: {
+                                        enabled: false
+                                    }
+                                }}
+                                chartDescription={{ text: '' }}
+                                legend={{ enabled: false }}
+                                marker={{
+                                    enabled: true,
+                                    markerColor: processColor('#1E293B'),
+                                    textColor: processColor('#FFFFFF'),
+                                }}
+                                touchEnabled={true}
+                                dragEnabled={true}
+                                scaleXEnabled={true}
+                                scaleYEnabled={false}
+                                pinchZoom={true}
+                            />
+                        </View>
+
+                        {/* Status Stats (Pie Charts) */}
+                        <View style={styles.sectionHeader}>
+                            <View style={[styles.sectionIndicator, { backgroundColor: '#F59E0B' }]} />
+                            <Text style={styles.sectionTitle}>Status Laporan & Darurat</Text>
+                        </View>
+                        <View style={styles.pieChartsRow}>
+                            <View style={styles.pieChartContainer}>
+                                <Text style={styles.pieChartLabel}>Status Pengaduan</Text>
+                                <PieChart
+                                    style={styles.smallPie}
+                                    logEnabled={false}
+                                    chartBackgroundColor={processColor('#FFFFFF')}
+                                    chartDescription={{ text: '' }}
+                                    data={{
+                                        dataSets: [{
+                                            values: (statsData.feedbackPerStatus || []).map(s => ({ value: Number(s.count || 0), label: s.status })),
+                                            label: '',
+                                            config: {
+                                                colors: [processColor('#F59E0B'), processColor('#3B82F6'), processColor('#10B981')],
+                                                valueTextSize: 10,
+                                                valueTextColor: processColor('#FFFFFF'),
+                                                sliceSpace: 2,
+                                                selectionShift: 5,
+                                            }
+                                        }]
+                                    }}
+                                    legend={{
+                                        enabled: true,
+                                        textSize: 8,
+                                        form: 'CIRCLE',
+                                        horizontalAlignment: "CENTER",
+                                        verticalAlignment: "BOTTOM",
+                                        orientation: "HORIZONTAL",
+                                        wordWrapEnabled: true
+                                    }}
+                                    entryLabelColor={processColor('#00000000')}
+                                    holeRadius={40}
+                                    transparentCircleRadius={45}
+                                    holeColor={processColor('#FFFFFF')}
+                                />
+                            </View>
+                            <View style={styles.pieChartContainer}>
+                                <Text style={styles.pieChartLabel}>Status Darurat</Text>
+                                <PieChart
+                                    style={styles.smallPie}
+                                    logEnabled={false}
+                                    chartBackgroundColor={processColor('#FFFFFF')}
+                                    chartDescription={{ text: '' }}
+                                    data={{
+                                        dataSets: [{
+                                            values: (statsData.notifikasiPerStatus || []).map(s => ({ value: Number(s.count || 0), label: s.status })),
+                                            label: '',
+                                            config: {
+                                                colors: [processColor('#EF4444'), processColor('#3B82F6'), processColor('#10B981')],
+                                                valueTextSize: 10,
+                                                valueTextColor: processColor('#FFFFFF'),
+                                                sliceSpace: 2,
+                                                selectionShift: 5,
+                                            }
+                                        }]
+                                    }}
+                                    legend={{
+                                        enabled: true,
+                                        textSize: 8,
+                                        form: 'CIRCLE',
+                                        horizontalAlignment: "CENTER",
+                                        verticalAlignment: "BOTTOM",
+                                        orientation: "HORIZONTAL",
+                                        wordWrapEnabled: true
+                                    }}
+                                    entryLabelColor={processColor('#00000000')}
+                                    holeRadius={40}
+                                    transparentCircleRadius={45}
+                                    holeColor={processColor('#FFFFFF')}
+                                />
+                            </View>
+                        </View>
+
+                        {/* Top Dinas Notifications (Darurat) */}
+                        <View style={styles.sectionHeader}>
+                            <View style={[styles.sectionIndicator, { backgroundColor: '#EF4444' }]} />
+                            <Text style={styles.sectionTitle}>Darurat Terbanyak (Dinas)</Text>
+                        </View>
+                        <View style={styles.horizontalCardContainer}>
+                            {statsData.top5DinasNotifikasi.map((item, idx) => (
+                                <View key={idx} style={styles.rankCard}>
+                                    <View style={styles.rankNumberBox}>
+                                        <Text style={styles.rankNumber}>{idx + 1}</Text>
+                                    </View>
+                                    <View style={styles.rankContent}>
+                                        <View style={styles.papanContainer}>
+                                            <View style={[styles.papanProgress, {
+                                                width: `${(item.count / (statsData.top5DinasNotifikasi[0].count || 1)) * 100}%`,
+                                                backgroundColor: '#EF4444'
+                                            }]} />
+                                            <View style={styles.papanTextContent}>
+                                                <Text style={styles.papanLabel} numberOfLines={1}>{item.dinasNama}</Text>
+                                                <Text style={styles.papanCount}>{item.count} Laporan</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+
+                        {/* Top Dinas Services */}
+                        <View style={styles.sectionHeader}>
+                            <View style={[styles.sectionIndicator, { backgroundColor: '#3B82F6' }]} />
+                            <Text style={styles.sectionTitle}>Layanan Teraktif (Dinas)</Text>
+                        </View>
+                        <View style={styles.horizontalCardContainer}>
+                            {statsData.top5DinasLayanan.map((item, idx) => (
+                                <View key={idx} style={styles.rankCard}>
+                                    <View style={[styles.rankNumberBox, { backgroundColor: '#3B82F6' }]}>
+                                        <Text style={styles.rankNumber}>{idx + 1}</Text>
+                                    </View>
+                                    <View style={styles.rankContent}>
+                                        <View style={styles.papanContainer}>
+                                            <View style={[styles.papanProgress, {
+                                                width: `${(item.count / (statsData.top5DinasLayanan[0].count || 1)) * 100}%`,
+                                                backgroundColor: '#3B82F6'
+                                            }]} />
+                                            <View style={styles.papanTextContent}>
+                                                <Text style={styles.papanLabel} numberOfLines={1}>{item.dinasNama}</Text>
+                                                <Text style={styles.papanCount}>{item.count} Layanan</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                        {/* Top Layanan Feedback (Bar Chart) */}
+                        <View style={styles.sectionHeader}>
+                            <View style={[styles.sectionIndicator, { backgroundColor: '#8B5CF6' }]} />
+                            <Text style={styles.sectionTitle}>Layanan Terpopuler (Feedback)</Text>
+                        </View>
+                        <View style={styles.barChartContainer}>
+                            <BarChart
+                                style={styles.chart}
+                                data={{
+                                    dataSets: [{
+                                        values: (statsData.top5LayananFeedback || []).map(l => ({ y: Number(l.count || 0) })),
+                                        label: 'Jumlah Masukan',
+                                        config: {
+                                            color: processColor('#8B5CF6'),
+                                            barShadowColor: processColor('#F1F5F9'),
+                                            highlightAlpha: 90,
+                                            highlightColor: processColor('#7C3AED'),
+                                            valueTextSize: 10,
+                                            valueFormatter: "###",
+                                        }
+                                    }]
+                                }}
+                                xAxis={{
+                                    valueFormatter: (statsData.top5LayananFeedback || []).map(l => (l.layananNama || '').substring(0, 10) + '..'),
+                                    position: 'BOTTOM',
+                                    granularityEnabled: true,
+                                    granularity: 1,
+                                    drawGridLines: false,
+                                    labelRotationAngle: -45,
+                                }}
+                                yAxis={{
+                                    left: {
+                                        drawGridLines: true,
+                                        gridColor: processColor('#F1F5F9'),
+                                        granularityEnabled: true,
+                                        granularity: 1,
+                                    },
+                                    right: {
+                                        enabled: false
+                                    }
+                                }}
+                                chartDescription={{ text: '' }}
+                                legend={{ enabled: false }}
+                            />
+                        </View>
+                    </>
+                )}
 
                 {/* Modules Section */}
                 <View style={styles.sectionHeader}>
@@ -189,7 +542,7 @@ export default function AdminDashboardScreen() {
 
                 <View style={{ height: 100 }} />
             </ScrollView>
-        </SafeAreaView>
+        </SafeAreaView >
     );
 }
 
@@ -202,44 +555,63 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        paddingHorizontal: 20,
+        paddingTop: 0,
+        paddingBottom: 0,
         backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
         borderBottomColor: '#F1F5F9',
+        height: 100, // Sedikit disesuaikan karena sekarang 3 baris
     },
     headerLeft: {
         flexDirection: 'row',
         alignItems: 'center',
+        flex: 1,
     },
-    logoBox: {
-        width: 36,
-        height: 36,
-        backgroundColor: '#FFB800',
-        borderRadius: 6,
-        justifyContent: 'center',
+    avatarMain: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#F1F5F9',
+        marginRight: 16,
+        borderWidth: 2,
+        borderColor: '#F1F5F9',
+    },
+    headerGreeting: {
+        fontSize: 14,
+        color: '#64748B',
+        fontWeight: '600',
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '900',
+        color: '#1E293B',
+        lineHeight: 22,
+    },
+    subtitleContainer: {
+        flexDirection: 'row',
         alignItems: 'center',
-        marginRight: 12,
+        marginTop: 6,
     },
-    logoText: {
+    roleBadge: {
+        backgroundColor: '#FFB800', // Kuning Kab KNG
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 4,
+        marginRight: 10,
+    },
+    roleBadgeText: {
         fontSize: 10,
         fontWeight: '900',
-        color: '#000000',
-        lineHeight: 12,
+        color: '#334155', // Black for contrast on Yellow
+    },
+    headerDinasText: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: '#64748B',
     },
     titleContainer: {
         justifyContent: 'center',
-    },
-    headerTitle: {
-        fontSize: 16,
-        fontWeight: '900',
-        color: '#1E293B',
-    },
-    headerSubtitle: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: '#94A3B8',
-        letterSpacing: 0.5,
     },
     headerRight: {
         flexDirection: 'row',
@@ -260,30 +632,8 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#FFFFFF',
     },
-    avatar: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: '#F1F5F9',
-    },
     container: {
         flex: 1,
-    },
-    greetingSection: {
-        paddingHorizontal: 20,
-        paddingTop: 24,
-        marginBottom: 20,
-    },
-    greetingName: {
-        fontSize: 24,
-        fontWeight: '900',
-        color: '#0F172A',
-        marginBottom: 4,
-    },
-    greetingRole: {
-        fontSize: 14,
-        color: '#64748B',
-        fontWeight: '500',
     },
     searchContainer: {
         flexDirection: 'row',
@@ -497,5 +847,164 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#94A3B8',
         fontWeight: '500',
+    },
+    // New Statistics Styles
+    horizontalCardContainer: {
+        paddingHorizontal: 20,
+        marginBottom: 24,
+    },
+    rankCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        padding: 12,
+        borderRadius: 12,
+        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+    },
+    rankNumberBox: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#EF4444',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    rankNumber: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '900',
+    },
+    rankContent: {
+        flex: 1,
+    },
+    papanContainer: {
+        height: 44,
+        backgroundColor: '#F1F5F9', // Light gray background
+        borderRadius: 10,
+        position: 'relative',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    papanProgress: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        borderRadius: 0,
+        opacity: 0.2, // 20% opacity so text is still visible over the bar
+    },
+    papanTextContent: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        zIndex: 1,
+    },
+    papanLabel: {
+        fontSize: 13,
+        fontWeight: '900',
+        color: '#1E293B', // Dark text for light background
+        flex: 1,
+        marginRight: 8,
+    },
+    papanCount: {
+        fontSize: 11,
+        fontWeight: '900',
+        color: '#475569', // Semi-dark text
+    },
+    summaryBg: {
+        backgroundColor: '#1E293B',
+        marginHorizontal: 20,
+        padding: 20,
+        borderRadius: 16,
+        marginBottom: 32,
+    },
+    summaryTitle: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '900',
+        marginBottom: 16,
+        textAlign: 'center',
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    summaryItem: {
+        alignItems: 'center',
+        flex: 1,
+    },
+    summaryValue: {
+        color: '#FFB800',
+        fontSize: 24,
+        fontWeight: '900',
+        marginBottom: 4,
+    },
+    summaryLabel: {
+        color: '#94A3B8',
+        fontSize: 10,
+        fontWeight: '700',
+        textAlign: 'center',
+    },
+    dividerVertical: {
+        width: 1,
+        height: 30,
+        backgroundColor: '#334155',
+    },
+    chartContainer: {
+        marginHorizontal: 20,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 10,
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        height: 250,
+    },
+    chart: {
+        flex: 1,
+    },
+    pieChartsRow: {
+        flexDirection: 'row',
+        paddingHorizontal: 15,
+        justifyContent: 'space-between',
+        marginBottom: 24,
+    },
+    pieChartContainer: {
+        width: (width - 50) / 2,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        alignItems: 'center',
+        height: 220,
+    },
+    pieChartLabel: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: '#1E293B',
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    smallPie: {
+        flex: 1,
+        width: '100%',
+    },
+    barChartContainer: {
+        marginHorizontal: 20,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 15,
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: '#F1F5F9',
+        height: 280,
     },
 });

@@ -28,6 +28,7 @@ export default function LoginScreen({ navigation }: any) {
     const [loading, setLoading] = useState(false);
     const [showAlert, setShowAlert] = useState(false);
     const [tempToken, setTempToken] = useState<string | null>(null);
+    const [tempRefreshToken, setTempRefreshToken] = useState<string | null>(null);
     const signIn = useAuthStore((state) => state.signIn);
 
     const handleLogin = async () => {
@@ -65,6 +66,7 @@ export default function LoginScreen({ navigation }: any) {
 
             setLoading(false);
             setTempToken(result.data?.token || null);
+            setTempRefreshToken(result.data?.refreshToken || null);
             setShowAlert(true);
         } else {
             setLoading(false);
@@ -202,7 +204,7 @@ export default function LoginScreen({ navigation }: any) {
                 onClose={() => {
                     setShowAlert(false);
                     if (tempToken) {
-                        signIn(tempToken);
+                        signIn(tempToken, tempRefreshToken || undefined);
                     }
                 }}
             />

@@ -70,6 +70,56 @@ export const SecureStorage = {
             return false;
         }
     },
+
+    /**
+     * Store the refresh token securely
+     */
+    setRefreshToken: async (refreshToken: string): Promise<boolean> => {
+        try {
+            await Keychain.setGenericPassword('refreshToken', refreshToken, {
+                service: `${TOKEN_SERVICE}.refresh`,
+                accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED,
+            });
+            return true;
+        } catch (error) {
+            console.error('Error storing refresh token:', error);
+            return false;
+        }
+    },
+
+    /**
+     * Retrieve the stored refresh token
+     */
+    getRefreshToken: async (): Promise<string | null> => {
+        try {
+            const credentials = await Keychain.getGenericPassword({
+                service: `${TOKEN_SERVICE}.refresh`,
+            });
+
+            if (credentials && credentials.password) {
+                return credentials.password;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error retrieving refresh token:', error);
+            return null;
+        }
+    },
+
+    /**
+     * Remove the stored refresh token
+     */
+    removeRefreshToken: async (): Promise<boolean> => {
+        try {
+            await Keychain.resetGenericPassword({
+                service: `${TOKEN_SERVICE}.refresh`,
+            });
+            return true;
+        } catch (error) {
+            console.error('Error removing refresh token:', error);
+            return false;
+        }
+    },
 };
 
 export default SecureStorage;

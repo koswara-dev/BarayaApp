@@ -12,12 +12,19 @@ import RootNavigator from './src/navigation/RootNavigator';
 import Toast from './src/components/Toast';
 import useAuthStore from './src/stores/authStore';
 import useNotificationStore from './src/stores/notificationStore';
+import useEmergencyStore from './src/stores/emergencyStore';
+import GlobalEmergencyModal from './src/components/GlobalEmergencyModal';
+import notifee, { EventType } from '@notifee/react-native';
+
+
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
-  const { startPolling, stopPolling } = useNotificationStore();
+  const startPolling = useNotificationStore((state) => state.startPolling);
+  const stopPolling = useNotificationStore((state) => state.stopPolling);
   const checkAuth = useAuthStore((state) => state.checkAuth);
   const token = useAuthStore((state) => state.token);
+  const isHydrated = useAuthStore((state) => state.isHydrated);
 
   // Handle polling lifecycle based on auth state
   useEffect(() => {
@@ -35,6 +42,51 @@ function App() {
     checkAuth();
   }, [checkAuth]);
 
+  // Handle notification foreground events
+  useEffect(() => {
+    // Only handle events if we are sure about auth state
+    if (!isHydrated) return;
+
+    const unsubscribe = notifee.onForegroundEvent(({ type, detail }) => {
+      if (type === EventType.PRESS) {
+        const { notification } = detail;
+        // If it's an emergency notification, show the global modal
+        const isEmergency = notification?.data?.judul === "Pesan Darurat!" || notification?.android?.channelId === 'emergency';
+
+        if (isEmergency) {
+          const eventId = notification?.data?.eventId || notification?.data?.id;
+          if (eventId) {
+            useEmergencyStore.getState().showModalWithFetch(eventId as string);
+          }
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [isHydrated]);
+
+  // Check for initial notification (app opened from notification)
+  useEffect(() => {
+    // CRITICAL: Must wait for hydration (token restoration) before 
+    // fetching emergency data, otherwise API call fails with 401
+    // and triggers "Session Expired" logout.
+    if (!isHydrated) return;
+
+    notifee.getInitialNotification().then((initialNotification) => {
+      if (initialNotification) {
+        const { notification } = initialNotification;
+        const isEmergency = notification?.data?.judul === "Pesan Darurat!" || notification?.android?.channelId === 'emergency';
+
+        if (isEmergency) {
+          const eventId = notification?.data?.eventId || notification?.data?.id;
+          if (eventId) {
+            useEmergencyStore.getState().showModalWithFetch(eventId as string);
+          }
+        }
+      }
+    });
+  }, [isHydrated]);
+
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -48,6 +100,7 @@ function AppContent() {
     <View style={styles.container}>
       <RootNavigator />
       <Toast />
+      <GlobalEmergencyModal />
     </View>
   );
 }

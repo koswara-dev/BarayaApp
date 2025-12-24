@@ -40,6 +40,8 @@ export interface TrackingStep {
 interface EmergencyStore {
     reports: EmergencyReport[];
     activeReport: EmergencyReport | null;
+    showEmergencyModal: boolean;
+    modalData: EmergencyReport | null;
     loading: boolean;
     error: string | null;
 
@@ -49,6 +51,8 @@ interface EmergencyStore {
     completeReport: () => void;
     clearActiveReport: () => void;
     getTrackingSteps: () => TrackingStep[];
+    setModalVisible: (visible: boolean, data?: EmergencyReport) => void;
+    showModalWithFetch: (eventId: number | string) => Promise<void>;
 }
 
 // Default tracking steps
@@ -76,6 +80,8 @@ const useEmergencyStore = create<EmergencyStore>()(
         (set, get) => ({
             reports: [],
             activeReport: null,
+            showEmergencyModal: false,
+            modalData: null,
             loading: false,
             error: null,
 
@@ -127,23 +133,26 @@ const useEmergencyStore = create<EmergencyStore>()(
                         parts.push({ name: 'dinasId', data: String(data.dinasId) });
                     }
 
-                    if (data.foto) {
+                    if (data.foto && data.foto.uri) {
                         const fileType = data.foto.type || 'image/jpeg';
                         const compressedUri = await compressImage(data.foto.uri, fileType);
-                        const extension = fileType.includes('png') ? '.png' : '.jpg';
-                        const fileName = data.foto.fileName || `emergency_${Date.now()}${extension}`;
 
-                        let uri = compressedUri;
-                        if (Platform.OS === 'ios') {
-                            uri = uri.replace('file://', '');
+                        if (compressedUri) {
+                            const extension = fileType.includes('png') ? '.png' : '.jpg';
+                            const fileName = data.foto.fileName || `emergency_${Date.now()}${extension}`;
+
+                            let uri = compressedUri;
+                            if (Platform.OS === 'ios') {
+                                uri = uri.replace('file://', '');
+                            }
+
+                            parts.push({
+                                name: 'foto',
+                                filename: fileName,
+                                type: fileType,
+                                data: ReactNativeBlobUtil.wrap(uri)
+                            });
                         }
-
-                        parts.push({
-                            name: 'foto',
-                            filename: fileName,
-                            type: fileType,
-                            data: ReactNativeBlobUtil.wrap(uri)
-                        });
                     }
 
                     const response = await ReactNativeBlobUtil.fetch('POST', `${API_BASE_URL}/notifikasi-darurat`, {
@@ -167,6 +176,8 @@ const useEmergencyStore = create<EmergencyStore>()(
                         set({
                             reports: [newReport, ...currentReports],
                             activeReport: newReport,
+                            showEmergencyModal: true,
+                            modalData: newReport,
                             loading: false
                         });
 
@@ -201,6 +212,40 @@ const useEmergencyStore = create<EmergencyStore>()(
                 const { activeReport } = get();
                 if (!activeReport) return [];
                 return getDefaultTrackingSteps(activeReport.status);
+            },
+
+            setModalVisible: (visible: boolean, data?: EmergencyReport) => {
+                set({
+                    showEmergencyModal: visible,
+                    modalData: data || (visible ? get().activeReport : null)
+                });
+            },
+
+            showModalWithFetch: async (eventId) => {
+                set({ loading: true });
+                try {
+                    // Fetch all reports (or you could add a dedicated GET /id endpoint later)
+                    const response = await api.get('/notifikasi-darurat');
+                    if (response.data.success) {
+                        const allReports: EmergencyReport[] = response.data.data.content || [];
+                        const found = allReports.find(r => String(r.id) === String(eventId));
+
+                        if (found) {
+                            set({
+                                modalData: found,
+                                showEmergencyModal: true,
+                                loading: false
+                            });
+                        } else {
+                            set({ loading: false });
+                        }
+                    } else {
+                        set({ loading: false });
+                    }
+                } catch (error) {
+                    console.log('Error fetching emergency by ID:', error);
+                    set({ loading: false });
+                }
             }
         }),
         {

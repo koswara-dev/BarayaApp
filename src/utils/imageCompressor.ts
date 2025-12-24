@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 const MAX_FILE_SIZE = 200 * 1024; // 200KB
 
 export const compressImage = async (uri: string, type: string = 'image/jpeg'): Promise<string> => {
+    if (!uri) return '';
     let currentUri = uri;
 
     // Normalize URI for Android

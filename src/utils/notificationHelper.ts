@@ -11,6 +11,7 @@ class NotificationHelper {
                 name: 'Layanan Darurat',
                 lights: true,
                 vibration: true,
+                sound: 'alarm',
                 importance: AndroidImportance.HIGH,
                 visibility: AndroidVisibility.PUBLIC,
                 description: 'Notifikasi untuk laporan darurat Anda',
@@ -26,7 +27,7 @@ class NotificationHelper {
     }
 
     // Menampilkan notifikasi lokal
-    async displayNotification(title: string, body: string, channelId: 'emergency' | 'default' = 'default') {
+    async displayNotification(title: string, body: string, channelId: 'emergency' | 'default' = 'default', data?: any) {
         // Minta izin (untuk Android 13+)
         await notifee.requestPermission();
 
@@ -38,30 +39,33 @@ class NotificationHelper {
 
         const isEmergency = channelId === 'emergency';
 
+        const androidConfig: any = {
+            channelId: channelId,
+            sound: isEmergency ? 'alarm' : 'default',
+            importance: isEmergency ? AndroidImportance.HIGH : AndroidImportance.DEFAULT,
+            pressAction: {
+                id: 'default',
+            },
+            smallIcon: 'ic_launcher',
+        };
+
+        if (isEmergency) {
+            androidConfig.largeIcon = 'https://cdn-icons-png.flaticon.com/512/564/564619.png';
+            androidConfig.style = {
+                type: AndroidStyle.BIGTEXT,
+                text: body,
+                title: title,
+            };
+        } else {
+            // Gunakan icon Toa/Megaphone yang lebih jelas
+            // androidConfig.largeIcon = 'https://cdn-icons-png.flaticon.com/512/1156/1156949.png';
+        }
+
         await notifee.displayNotification({
             title: title,
             body: truncatedBody,
-            android: {
-                channelId: channelId,
-                importance: isEmergency ? AndroidImportance.HIGH : AndroidImportance.DEFAULT,
-                pressAction: {
-                    id: 'default',
-                },
-                // Ikon kecil (silhouette)
-                smallIcon: 'ic_launcher',
-                // Ikon besar dengan resolusi yang lebih baik & bulat (TikTok-style)
-                largeIcon: isEmergency
-                    ? 'https://cdn-icons-png.flaticon.com/512/564/564619.png'
-                    : undefined,
-                // Gunakan BigText style agar posisi ikon di sebelah kanan lebih 'rapi' & 'ke tengah'
-                style: isEmergency ? {
-                    type: AndroidStyle.BIGTEXT,
-                    text: body,
-                    title: title,
-                } : undefined,
-                // Warna aksen lingkaran untuk ikon kecil
-                color: isEmergency ? '#FF0000' : undefined,
-            },
+            data: data,
+            android: androidConfig,
         });
     }
 }

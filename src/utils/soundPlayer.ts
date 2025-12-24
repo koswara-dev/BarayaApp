@@ -41,14 +41,22 @@ export const playEmergencySound = () => {
         successSound.release();
     }
 
-    successSound = new Sound('emergency_alert.mp3', Sound.MAIN_BUNDLE, (error) => {
+    // Use 'alarm.mp3' directly since it is in android/app/src/main/res/raw
+    // This avoids "filename.startsWith is not a function" error when passing a require() number ID
+    successSound = new Sound('alarm.mp3', Sound.MAIN_BUNDLE, (error) => {
         if (error) {
             console.log('Failed to load emergency sound', error);
             return;
         }
 
         successSound?.setVolume(1.0);
-        successSound?.play();
+        successSound?.play((success) => {
+            if (success) {
+                console.log('Emergency sound played successfully');
+            } else {
+                console.log('Emergency sound playback failed');
+            }
+        });
     });
 };
 

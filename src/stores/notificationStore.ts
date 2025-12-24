@@ -41,15 +41,9 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
                     notificationHelper.displayNotification(
                         latest.judul || "Notifikasi Baru",
                         latest.pesan || "",
-                        latest.judul === "Pesan Darurat!" ? 'emergency' : 'default'
+                        latest.judul === "Pesan Darurat!" ? 'emergency' : 'default',
+                        latest
                     );
-
-                    // Play sound if emergency
-                    if (latest.judul === "Pesan Darurat!") {
-                        playEmergencySound();
-                    } else {
-                        playSuccessSound();
-                    }
                 }
 
                 // Update lastNotifiedId to the absolute latest id found
@@ -73,6 +67,7 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
 
             if (response.data.success && response.data.data) {
                 const newNotif = response.data.data;
+
                 set((state) => ({
                     notifications: [newNotif, ...state.notifications],
                     lastNotifiedId: Math.max(state.lastNotifiedId || 0, newNotif.id)
