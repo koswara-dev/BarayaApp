@@ -160,7 +160,7 @@ export default function ServiceHistoryScreen() {
                     {CATEGORIES.map(cat => (
                         <TouchableOpacity
                             key={cat}
-                            style={[styles.tabItem, activeTab === cat && styles.activeTabItem]}
+                            style={styles.tabItem}
                             onPress={() => setActiveTab(cat)}
                         >
                             <Text style={[styles.tabText, activeTab === cat && styles.activeTabText]}>
