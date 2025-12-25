@@ -18,6 +18,58 @@ import api, { getImageUrl } from '../config/api';
 import useAuthStore from '../stores/authStore';
 import useToastStore from '../stores/toastStore';
 import useUserStore from '../stores/userStore';
+import SkeletonShimmer from '../components/SkeletonShimmer';
+
+// Skeleton for Profile Detail Screen
+const ProfileSkeleton = () => (
+    <>
+        {/* Avatar Skeleton */}
+        <View style={styles.avatarSection}>
+            <View style={styles.avatarContainer}>
+                <View style={styles.avatarOutline}>
+                    <SkeletonShimmer style={styles.avatarInner} />
+                </View>
+            </View>
+            <SkeletonShimmer style={{ width: 120, height: 14 }} />
+        </View>
+
+        {/* Section Header Skeleton */}
+        <View style={styles.sectionHeader}>
+            <SkeletonShimmer style={{ width: 120, height: 12 }} />
+            <SkeletonShimmer style={{ width: 100, height: 20, borderRadius: 4 }} />
+        </View>
+
+        {/* Info Rows Skeleton */}
+        <View style={styles.infoGroup}>
+            {[1, 2, 3, 4].map((_, index) => (
+                <View key={index} style={styles.infoRow}>
+                    <View style={styles.infoTextColumn}>
+                        <SkeletonShimmer style={{ width: 150, height: 10, marginBottom: 6 }} />
+                        <SkeletonShimmer style={{ width: '80%', height: 15 }} />
+                    </View>
+                    <SkeletonShimmer style={styles.actionBtn} />
+                </View>
+            ))}
+        </View>
+
+        {/* Second Section */}
+        <View style={styles.sectionHeader}>
+            <SkeletonShimmer style={{ width: 140, height: 12 }} />
+        </View>
+
+        <View style={styles.infoGroup}>
+            {[1, 2, 3].map((_, index) => (
+                <View key={index} style={styles.infoRow}>
+                    <View style={styles.infoTextColumn}>
+                        <SkeletonShimmer style={{ width: 100, height: 10, marginBottom: 6 }} />
+                        <SkeletonShimmer style={{ width: index === 2 ? '100%' : '70%', height: 15 }} />
+                    </View>
+                    <SkeletonShimmer style={styles.actionBtn} />
+                </View>
+            ))}
+        </View>
+    </>
+);
 
 export default function ProfileDetailScreen({ navigation }: any) {
     const { user } = useAuthStore();
@@ -106,88 +158,94 @@ export default function ProfileDetailScreen({ navigation }: any) {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
-                {/* Avatar Section */}
-                <View style={styles.avatarSection}>
-                    <View style={styles.avatarContainer}>
-                        <View style={styles.avatarOutline}>
-                            <View style={styles.avatarInner}>
-                                {userData.urlFoto ? (
-                                    <Image source={{ uri: getImageUrl(userData.urlFoto) }} style={styles.avatarImg} />
-                                ) : (
-                                    <Icon name="person" size={70} color="#CBD5E1" />
-                                )}
+                {loading ? (
+                    <ProfileSkeleton />
+                ) : (
+                    <>
+                        {/* Avatar Section */}
+                        <View style={styles.avatarSection}>
+                            <View style={styles.avatarContainer}>
+                                <View style={styles.avatarOutline}>
+                                    <View style={styles.avatarInner}>
+                                        {userData.urlFoto ? (
+                                            <Image source={{ uri: getImageUrl(userData.urlFoto) }} style={styles.avatarImg} />
+                                        ) : (
+                                            <Icon name="person" size={70} color="#CBD5E1" />
+                                        )}
+                                    </View>
+                                    <TouchableOpacity style={styles.editAvatarBtn} onPress={handleImagePick}>
+                                        <Icon name="pencil" size={16} color="#0F172A" />
+                                    </TouchableOpacity>
+                                </View>
                             </View>
-                            <TouchableOpacity style={styles.editAvatarBtn} onPress={handleImagePick}>
-                                <Icon name="pencil" size={16} color="#0F172A" />
-                            </TouchableOpacity>
+                            <Text style={styles.avatarHint}>Ketuk untuk ubah foto</Text>
                         </View>
-                    </View>
-                    <Text style={styles.avatarHint}>Ketuk untuk ubah foto</Text>
-                </View>
 
-                {/* Section: IDENTITAS DIRI */}
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitleText}>IDENTITAS DIRI</Text>
-                    {userData.verified && (
-                        <View style={styles.verifiedBadge}>
-                            <Icon name="checkmark-circle" size={14} color="#10B981" />
-                            <Text style={styles.verifiedText}>TERVERIFIKASI</Text>
+                        {/* Section: IDENTITAS DIRI */}
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitleText}>IDENTITAS DIRI</Text>
+                            {userData.verified && (
+                                <View style={styles.verifiedBadge}>
+                                    <Icon name="checkmark-circle" size={14} color="#10B981" />
+                                    <Text style={styles.verifiedText}>TERVERIFIKASI</Text>
+                                </View>
+                            )}
                         </View>
-                    )}
-                </View>
 
-                <View style={styles.infoGroup}>
-                    <InfoRow
-                        label="NOMOR INDUK KEPENDUDUKAN (NIK)"
-                        value={userData.nik}
-                        locked={true}
-                    />
-                    <InfoRow
-                        label="NAMA LENGKAP"
-                        value={userData.fullName}
-                        locked={true}
-                    />
-                    <InfoRow
-                        label="TEMPAT, TANGGAL LAHIR"
-                        value={`${userData.tempatLahir || 'Kuningan'}, ${userData.tanggalLahir || '28 Januari 1990'}`}
-                        locked={true}
-                    />
-                    <InfoRow
-                        label="JENIS KELAMIN"
-                        value={userData.jenisKelamin || 'Laki-laki'}
-                        locked={true}
-                    />
-                </View>
+                        <View style={styles.infoGroup}>
+                            <InfoRow
+                                label="NOMOR INDUK KEPENDUDUKAN (NIK)"
+                                value={userData.nik}
+                                locked={true}
+                            />
+                            <InfoRow
+                                label="NAMA LENGKAP"
+                                value={userData.fullName}
+                                locked={true}
+                            />
+                            <InfoRow
+                                label="TEMPAT, TANGGAL LAHIR"
+                                value={`${userData.tempatLahir || 'Kuningan'}, ${userData.tanggalLahir || '28 Januari 1990'}`}
+                                locked={true}
+                            />
+                            <InfoRow
+                                label="JENIS KELAMIN"
+                                value={userData.jenisKelamin || 'Laki-laki'}
+                                locked={true}
+                            />
+                        </View>
 
-                {/* Section: KONTAK & ALAMAT */}
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitleText}>KONTAK & ALAMAT</Text>
-                </View>
+                        {/* Section: KONTAK & ALAMAT */}
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitleText}>KONTAK & ALAMAT</Text>
+                        </View>
 
-                <View style={styles.infoGroup}>
-                    <InfoRow
-                        label="NOMOR TELEPON"
-                        value={userData.phoneNumber || '0812-3456-7890'}
-                        onPress={() => showToast("Fitur ubah nomor telepon segera hadir", "info")}
-                    />
-                    <InfoRow
-                        label="ALAMAT EMAIL"
-                        value={userData.email || 'ahmad.zul@gmail.com'}
-                        onPress={() => showToast("Fitur ubah email segera hadir", "info")}
-                    />
-                    <InfoRow
-                        label="ALAMAT LENGKAP"
-                        value={userData.alamat || 'Alamat belum disetel'}
-                        onPress={() => showToast("Fitur ubah alamat segera hadir", "info")}
-                        isMultiline={true}
-                    />
-                </View>
+                        <View style={styles.infoGroup}>
+                            <InfoRow
+                                label="NOMOR TELEPON"
+                                value={userData.phoneNumber || '0812-3456-7890'}
+                                onPress={() => showToast("Fitur ubah nomor telepon segera hadir", "info")}
+                            />
+                            <InfoRow
+                                label="ALAMAT EMAIL"
+                                value={userData.email || 'ahmad.zul@gmail.com'}
+                                onPress={() => showToast("Fitur ubah email segera hadir", "info")}
+                            />
+                            <InfoRow
+                                label="ALAMAT LENGKAP"
+                                value={userData.alamat || 'Alamat belum disetel'}
+                                onPress={() => showToast("Fitur ubah alamat segera hadir", "info")}
+                                isMultiline={true}
+                            />
+                        </View>
 
-                <Text style={styles.footerNote}>
-                    Data identitas (NIK, Nama, TTL, Jenis Kelamin) diambil dari data Kependudukan (Dukcapil) dan tidak dapat diubah secara langsung. Hubungi layanan Dukcapil jika terdapat kesalahan data.
-                </Text>
+                        <Text style={styles.footerNote}>
+                            Data identitas (NIK, Nama, TTL, Jenis Kelamin) diambil dari data Kependudukan (Dukcapil) dan tidak dapat diubah secara langsung. Hubungi layanan Dukcapil jika terdapat kesalahan data.
+                        </Text>
 
-                <View style={{ height: 40 }} />
+                        <View style={{ height: 40 }} />
+                    </>
+                )}
             </ScrollView>
         </View>
     );

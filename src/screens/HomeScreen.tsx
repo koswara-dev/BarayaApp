@@ -57,11 +57,15 @@ export default function HomeScreen() {
       setWeather({
         temp: `${Math.round(weatherData.current_weather.temperature)}°C`,
         icon,
-        city: city + ', ' + (geoData.address.state || 'Jabar')
+        city: city
       });
     } catch (error) {
       console.log('Weather error:', error);
-      setWeather({ temp: '28°C', icon: 'partly-sunny', city: 'Kuningan, Jabar' });
+      setWeather(prev => ({
+        ...prev,
+        temp: prev.city === 'Mencari...' ? '--°C' : prev.temp,
+        city: prev.city === 'Mencari...' ? 'Lokasi Belum Diketahui' : prev.city
+      }));
     }
   };
 
@@ -69,8 +73,11 @@ export default function HomeScreen() {
     if (user?.id && !profile) {
       fetchUserProfile(user.id);
     }
-    fetchWeather();
   }, [user?.id, profile, fetchUserProfile]);
+
+  useEffect(() => {
+    fetchWeather();
+  }, []); // Run once on mount
 
   const banners = [
     {
@@ -155,6 +162,12 @@ export default function HomeScreen() {
         <View style={styles.menuGridContainer}>
           <View style={styles.menuRow}>
             <MenuItem
+              icon="megaphone"
+              label="Aduan Warga"
+              color="#F59E0B"
+              onPress={() => navigation.navigate('CreatePengaduan')}
+            />
+            <MenuItem
               icon="card"
               label="KTP & KK"
               color="#3B82F6"
@@ -170,11 +183,6 @@ export default function HomeScreen() {
               icon="map"
               label="Peta"
               color="#8B5CF6"
-            />
-            <MenuItem
-              icon="cart"
-              label="Pasar"
-              color="#EC4899"
             />
           </View>
           <View style={[styles.menuRow, { marginTop: 16 }]}>

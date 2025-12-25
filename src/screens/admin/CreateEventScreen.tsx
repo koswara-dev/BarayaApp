@@ -18,15 +18,15 @@ import {
 import DatePicker from 'react-native-date-picker';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-import useEventStore from '../stores/eventStore';
-import useLayananStore from '../stores/layananStore';
-import useToastStore from '../stores/toastStore';
-import useNotificationStore from '../stores/notificationStore';
-import LoadingOverlay from '../components/LoadingOverlay';
-import PrimaryButton from '../components/PrimaryButton';
-import IndustrialFormSection from '../components/Form/IndustrialFormSection';
-import IndustrialInput from '../components/Form/IndustrialInput';
-import IndustrialImagePicker from '../components/Form/IndustrialImagePicker';
+import useEventStore from '../../stores/eventStore';
+import useLayananStore from '../../stores/layananStore';
+import useToastStore from '../../stores/toastStore';
+import useNotificationStore from '../../stores/notificationStore';
+import LoadingOverlay from '../../components/LoadingOverlay';
+import PrimaryButton from '../../components/PrimaryButton';
+import IndustrialFormSection from '../../components/Form/IndustrialFormSection';
+import IndustrialInput from '../../components/Form/IndustrialInput';
+import IndustrialImagePicker from '../../components/Form/IndustrialImagePicker';
 
 // Helper to format Date to LocalDateTime string (yyyy-MM-ddTHH:mm:ss)
 const formatToLocalDateTime = (date: Date) => {
@@ -81,6 +81,20 @@ export default function CreateEventScreen() {
     const [slideAnimDinas] = useState(new Animated.Value(400));
     const [slideAnimConfirm] = useState(new Animated.Value(400));
     const [slideAnimPicker] = useState(new Animated.Value(400));
+
+    // Stabilize date references to prevent infinite loops
+    const today = React.useMemo(() => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }, []);
+
+    const minEndDate = React.useMemo(() => {
+        if (!form.tanggalMulai) return today;
+        const d = new Date(form.tanggalMulai);
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }, [form.tanggalMulai, today]);
 
     useEffect(() => {
         if (dinasModalVisible) {
@@ -138,21 +152,8 @@ export default function CreateEventScreen() {
             });
 
             // Since createEvent now throws on error, if we reach here it was successful
-            // Send global notification
-            try {
-                // eventId fallback to 0 or null if not returned by server
-                // Safely check if newEvent is an object and has id
-                const eventId = (newEvent && typeof newEvent === 'object') ? newEvent.id : null;
+            // Removed manual notification trigger (backend handles it)
 
-                await sendNotification({
-                    judul: form.judul,
-                    pesan: form.deskripsi,
-                    eventId: eventId,
-                    dinasId: form.dinasId
-                });
-            } catch (notifErr) {
-                console.log('Notification skip/fail:', notifErr);
-            }
 
             showToast('Event berhasil dibuat', 'success');
             navigation.goBack();
@@ -168,8 +169,27 @@ export default function CreateEventScreen() {
         setDinasModalVisible(false);
     };
 
-    const renderPickerModal = (visible: boolean, onClose: () => void, initialDate: Date, onSelect: (date: Date) => void, title: string) => {
+    const renderPickerModal = (
+        visible: boolean,
+        onClose: () => void,
+        initialDate: Date,
+        onSelect: (date: Date) => void,
+        title: string,
+        minimumDate?: Date
+    ) => {
         const [tempDate, setTempDate] = useState(initialDate);
+
+        // Reset tempDate only when modal BECOMES visible
+        useEffect(() => {
+            if (visible) {
+                let startDate = initialDate;
+                if (minimumDate && initialDate < minimumDate) {
+                    startDate = minimumDate;
+                }
+                setTempDate(startDate);
+            }
+        }, [visible]); // Only depend on visible to break loop
+
         return (
             <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
                 <View style={styles.pickerOverlay}>
@@ -190,6 +210,7 @@ export default function CreateEventScreen() {
                             <DatePicker
                                 date={tempDate}
                                 onDateChange={setTempDate}
+                                minimumDate={minimumDate}
                                 mode="date"
                                 is24hourSource="locale"
                                 theme="light"
@@ -296,17 +317,29 @@ export default function CreateEventScreen() {
                 {renderPickerModal(
                     openStart,
                     () => setOpenStart(false),
-                    form.tanggalMulai ? new Date(form.tanggalMulai) : new Date(),
-                    (date) => setForm({ ...form, tanggalMulai: formatToLocalDateTime(date) }),
-                    "TANGGAL MULAI"
+                    form.tanggalMulai ? new Date(form.tanggalMulai) : today,
+                    (date) => {
+                        const newStart = formatToLocalDateTime(date);
+                        let newForm = { ...form, tanggalMulai: newStart };
+
+                        // If end date is before new start date, adjust it
+                        if (form.tanggalSelesai && new Date(form.tanggalSelesai) < date) {
+                            newForm.tanggalSelesai = newStart;
+                        }
+
+                        setForm(newForm);
+                    },
+                    "TANGGAL MULAI",
+                    today
                 )}
 
                 {renderPickerModal(
                     openEnd,
                     () => setOpenEnd(false),
-                    form.tanggalSelesai ? new Date(form.tanggalSelesai) : new Date(),
+                    form.tanggalSelesai ? new Date(form.tanggalSelesai) : minEndDate,
                     (date) => setForm({ ...form, tanggalSelesai: formatToLocalDateTime(date) }),
-                    "TANGGAL SELESAI"
+                    "TANGGAL SELESAI",
+                    minEndDate
                 )}
 
                 {/* 3. Lokasi & Instansi */}

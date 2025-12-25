@@ -20,7 +20,7 @@ import { playEmergencySound, stopSound } from '../utils/soundPlayer';
 const { width } = Dimensions.get('window');
 
 const GlobalEmergencyModal = () => {
-    const { showEmergencyModal, modalData, setModalVisible, loading } = useEmergencyStore();
+    const { showEmergencyModal, modalData, setModalVisible, loading, error } = useEmergencyStore();
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const flashAnim = useRef(new Animated.Value(0)).current;
     const stripeAnim = useRef(new Animated.Value(0)).current;
@@ -179,6 +179,11 @@ const GlobalEmergencyModal = () => {
                         <View style={styles.loadingBody}>
                             <ActivityIndicator size="large" color="#EF4444" />
                             <Text style={styles.loadingText}>MENGAMBIL DATA DARURAT...</Text>
+                        </View>
+                    ) : !modalData ? (
+                        <View style={styles.loadingBody}>
+                            <Icon name="alert-circle" size={48} color="#EF4444" />
+                            <Text style={styles.loadingText}>{error || 'DATA TIDAK DITEMUKAN'}</Text>
                         </View>
                     ) : (
                         <View style={styles.body}>

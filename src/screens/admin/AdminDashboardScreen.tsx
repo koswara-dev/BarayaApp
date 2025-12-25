@@ -15,15 +15,15 @@ import {
     processColor,
     ProcessedColorValue
 } from 'react-native';
-import api, { getImageUrl } from '../config/api';
+import api, { getImageUrl } from '../../config/api';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import { LineChart, BarChart, PieChart } from 'react-native-charts-wrapper';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
-import useAuthStore from '../stores/authStore';
-import useUserStore from '../stores/userStore';
+import { RootStackParamList } from '../../navigation/types';
+import useAuthStore from '../../stores/authStore';
+import useUserStore from '../../stores/userStore';
 
 const { width } = Dimensions.get('window');
 
@@ -55,15 +55,18 @@ export default function AdminDashboardScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [statsData, setStatsData] = useState<StatsResponse['data'] | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     const fetchStats = useCallback(async () => {
         try {
+            setError(null);
             const response = await api.get<StatsResponse>('/statistik');
             if (response.data.success) {
                 setStatsData(response.data.data);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error fetching stats:', error);
+            setError(error.message || 'Gagal memuat statistik api');
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -92,15 +95,15 @@ export default function AdminDashboardScreen() {
         },
         {
             label: 'PENGADUAN',
-            count: statsData?.feedbackPerStatus.reduce((acc, curr) => acc + curr.count, 0) || 0,
-            badge: statsData?.feedbackPerStatus.find(s => s.status === 'pending')?.count ? `+${statsData.feedbackPerStatus.find(s => s.status === 'pending')?.count}` : '--',
+            count: (statsData?.feedbackPerStatus || []).reduce((acc: any, curr: any) => acc + curr.count, 0) || 0,
+            badge: (statsData?.feedbackPerStatus || []).find((s: any) => s.status === 'pending')?.count ? `+${(statsData?.feedbackPerStatus || []).find((s: any) => s.status === 'pending')?.count}` : '--',
             color: '#F59E0B',
             icon: 'chatbubbles'
         },
         {
             label: 'DARURAT',
             count: statsData?.totalNotifikasiDarurat || 0,
-            badge: statsData?.notifikasiPerStatus.find(s => s.status === 'pending')?.count ? `${statsData.notifikasiPerStatus.find(s => s.status === 'pending')?.count} New` : '--',
+            badge: (statsData?.notifikasiPerStatus || []).find((s: any) => s.status === 'pending')?.count ? `${(statsData?.notifikasiPerStatus || []).find((s: any) => s.status === 'pending')?.count} New` : '--',
             color: '#EF4444',
             icon: 'alert-circle'
         },
@@ -151,6 +154,7 @@ export default function AdminDashboardScreen() {
         return 'Selamat Malam';
     };
 
+
     const greeting = getTimeGreeting();
 
     return (
@@ -159,6 +163,7 @@ export default function AdminDashboardScreen() {
 
             {/* Header */}
             <View style={styles.header}>
+                {/* ... (Keep Header content identical to original) */}
                 <View style={styles.headerLeft}>
                     {profile?.urlFoto ? (
                         <Image
@@ -199,27 +204,42 @@ export default function AdminDashboardScreen() {
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FFB800']} />
                 }
             >
-                <View style={{ height: 20 }} />
-
-                {/* Stats Row */}
-                <View style={styles.statsRow}>
-                    {topStats.map((stat, idx) => (
-                        <View key={idx} style={styles.statCard}>
-                            <View style={styles.statTop}>
-                                <View style={[styles.statIconBox, { backgroundColor: stat.color + '15' }]}>
-                                    <Icon name={stat.icon} size={18} color={stat.color} />
-                                </View>
-                                {stat.badge !== '--' && (
-                                    <View style={[styles.statBadge, { backgroundColor: stat.color + '10' }]}>
-                                        <Text style={[styles.statBadgeText, { color: stat.color }]}>{stat.badge}</Text>
+                {error ? (
+                    <View style={{ padding: 20, alignItems: 'center', marginTop: 50 }}>
+                        <Icon name="alert-circle-outline" size={48} color="#EF4444" />
+                        <Text style={{ marginTop: 12, color: '#EF4444', fontWeight: 'bold' }}>Terjadi Kesalahan</Text>
+                        <Text style={{ marginTop: 4, color: '#64748B', textAlign: 'center' }}>{error}</Text>
+                        {error.includes('500') && (
+                            <Text style={{ marginTop: 8, fontSize: 10, color: '#94A3B8' }}>Hint: Cek log server (ID Type Mismatch)</Text>
+                        )}
+                        <TouchableOpacity onPress={onRefresh} style={{ marginTop: 20, padding: 10, backgroundColor: '#F1F5F9', borderRadius: 8 }}>
+                            <Text style={{ color: '#0F172A', fontWeight: 'bold' }}>Coba Lagi</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <>
+                        <View style={{ height: 20 }} />
+                        {/* Stats Row and the rest of the content... */}
+                        <View style={styles.statsRow}>
+                            {topStats.map((stat, idx) => (
+                                <View key={idx} style={styles.statCard}>
+                                    <View style={styles.statTop}>
+                                        <View style={[styles.statIconBox, { backgroundColor: stat.color + '15' }]}>
+                                            <Icon name={stat.icon} size={18} color={stat.color} />
+                                        </View>
+                                        {stat.badge !== '--' && (
+                                            <View style={[styles.statBadge, { backgroundColor: stat.color + '10' }]}>
+                                                <Text style={[styles.statBadgeText, { color: stat.color }]}>{stat.badge}</Text>
+                                            </View>
+                                        )}
                                     </View>
-                                )}
-                            </View>
-                            <Text style={styles.statCount}>{stat.count}</Text>
-                            <Text style={styles.statLabel}>{stat.label}</Text>
+                                    <Text style={styles.statCount}>{stat.count}</Text>
+                                    <Text style={styles.statLabel}>{stat.label}</Text>
+                                </View>
+                            ))}
                         </View>
-                    ))}
-                </View>
+                    </>
+                )}
 
                 {/* Detailed Stats Sections */}
                 {statsData && (
@@ -388,7 +408,7 @@ export default function AdminDashboardScreen() {
                             <Text style={styles.sectionTitle}>Darurat Terbanyak (Dinas)</Text>
                         </View>
                         <View style={styles.horizontalCardContainer}>
-                            {statsData.top5DinasNotifikasi.map((item, idx) => (
+                            {(statsData.top5DinasNotifikasi || []).map((item: any, idx: number) => (
                                 <View key={idx} style={styles.rankCard}>
                                     <View style={styles.rankNumberBox}>
                                         <Text style={styles.rankNumber}>{idx + 1}</Text>
@@ -396,7 +416,7 @@ export default function AdminDashboardScreen() {
                                     <View style={styles.rankContent}>
                                         <View style={styles.papanContainer}>
                                             <View style={[styles.papanProgress, {
-                                                width: `${(item.count / (statsData.top5DinasNotifikasi[0].count || 1)) * 100}%`,
+                                                width: `${(item.count / ((statsData.top5DinasNotifikasi && statsData.top5DinasNotifikasi[0]?.count) || 1)) * 100}%`,
                                                 backgroundColor: '#EF4444'
                                             }]} />
                                             <View style={styles.papanTextContent}>
@@ -415,7 +435,7 @@ export default function AdminDashboardScreen() {
                             <Text style={styles.sectionTitle}>Layanan Teraktif (Dinas)</Text>
                         </View>
                         <View style={styles.horizontalCardContainer}>
-                            {statsData.top5DinasLayanan.map((item, idx) => (
+                            {(statsData.top5DinasLayanan || []).map((item: any, idx: number) => (
                                 <View key={idx} style={styles.rankCard}>
                                     <View style={[styles.rankNumberBox, { backgroundColor: '#3B82F6' }]}>
                                         <Text style={styles.rankNumber}>{idx + 1}</Text>
@@ -423,7 +443,7 @@ export default function AdminDashboardScreen() {
                                     <View style={styles.rankContent}>
                                         <View style={styles.papanContainer}>
                                             <View style={[styles.papanProgress, {
-                                                width: `${(item.count / (statsData.top5DinasLayanan[0].count || 1)) * 100}%`,
+                                                width: `${(item.count / ((statsData.top5DinasLayanan && statsData.top5DinasLayanan[0]?.count) || 1)) * 100}%`,
                                                 backgroundColor: '#3B82F6'
                                             }]} />
                                             <View style={styles.papanTextContent}>

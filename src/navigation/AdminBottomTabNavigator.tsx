@@ -2,11 +2,11 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import AdminDashboardScreen from '../screens/AdminDashboardScreen';
+import AdminDashboardScreen from '../screens/admin/AdminDashboardScreen';
 import ProfileStackNavigator from './ProfileStackNavigator';
 import EmergencyScreen from '../screens/EmergencyScreen';
 import FeatherIcon from 'react-native-vector-icons/Feather';
-import ApplicationScreen from '../screens/ApplicationScreen';
+import ApplicationScreen from '../screens/admin/ApplicationScreen';
 
 const Tab = createBottomTabNavigator();
 

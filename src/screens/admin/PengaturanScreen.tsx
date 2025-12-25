@@ -13,8 +13,8 @@ import {
     Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import usePengaturanStore, { Pengaturan } from '../stores/pengaturanStore';
-import useToastStore from '../stores/toastStore';
+import usePengaturanStore, { Pengaturan } from '../../stores/pengaturanStore';
+import useToastStore from '../../stores/toastStore';
 
 // Define editable fields configuration
 const PENGATURAN_FIELDS: { key: keyof Pengaturan; label: string; multiline?: boolean }[] = [

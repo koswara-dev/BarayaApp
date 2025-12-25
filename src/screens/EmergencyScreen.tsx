@@ -247,35 +247,8 @@ export default function EmergencyScreen() {
             setPhoto(null);
             setSelectedDinas(null);
 
-            // Background tasks - don't block UI
-            setTimeout(async () => {
-                // Tampilkan Notifikasi Lokal di HP (System Tray) SEGERA
-                // Agar user langsung dengar alarm dan lihat notif tanpa nunggu sync backend
-                await notificationHelper.displayNotification(
-                    "Pesan Darurat!",
-                    message,
-                    'emergency',
-                    { ...result, judul: "Pesan Darurat!" } // Pass the full result data
-                );
-
-                try {
-                    // Send notification to API /api/v1/notifikasi for recording in history
-                    // We don't rely on this for the immediate visual alert anymore
-                    await sendNotification({
-                        judul: "Pesan Darurat!",
-                        pesan: message,
-                        read: false,
-                        eventId: result.id,
-                        dinasId: selectedDinas?.id || null,
-                        dinasNama: selectedDinas?.nama || null
-                    });
-                } catch (notifError) {
-                    console.log('Backend notification sync failed:', notifError);
-                }
-
-                // Vibration pattern like Gojek order notification
-                Vibration.vibrate([0, 200, 100, 200, 100, 300]);
-            }, 500);
+            // Vibration pattern like Gojek order notification
+            Vibration.vibrate([0, 200, 100, 200, 100, 300]);
 
         } catch (error: any) {
             setIsSubmitting(false);
@@ -909,7 +882,7 @@ export default function EmergencyScreen() {
                                 <Text style={styles.confirmInfoValue}>: {profile?.phoneNumber || 'Tidak ada nomor'}</Text>
                             </View>
                             <View style={styles.confirmInfoRow}>
-                                <Text style={styles.confirmInfoKey}>Dinas</Text>
+                                <Text style={styles.confirmInfoKey}>Dinas Tujuan</Text>
                                 <Text style={[styles.confirmInfoValue, { color: '#E11D48', fontWeight: '900' }]}>: {selectedDinas?.nama?.toUpperCase()}</Text>
                             </View>
                         </View>

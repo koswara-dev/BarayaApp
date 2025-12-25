@@ -21,10 +21,27 @@ import { Feedback, FeedbackResponse } from '../types/service';
 import api, { getImageUrl } from '../config/api';
 import useAuthStore from '../stores/authStore';
 import useToastStore from '../stores/toastStore';
+import SkeletonShimmer from '../components/SkeletonShimmer';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceDetail'>;
 
 const { width } = Dimensions.get('window');
+
+// Skeleton for Review Items
+const ReviewItemSkeleton = () => (
+    <View style={styles.reviewItem}>
+        <View style={styles.reviewUserRow}>
+            <SkeletonShimmer style={styles.userAvatar} />
+            <View style={styles.userInfo}>
+                <SkeletonShimmer style={{ width: 100, height: 14, marginBottom: 4 }} />
+                <SkeletonShimmer style={{ width: 60, height: 10 }} />
+            </View>
+        </View>
+        <SkeletonShimmer style={{ width: 80, height: 16, marginVertical: 8 }} />
+        <SkeletonShimmer style={{ width: '100%', height: 14, marginBottom: 4 }} />
+        <SkeletonShimmer style={{ width: '70%', height: 14 }} />
+    </View>
+);
 
 const REQUIREMENTS = [
     { id: 1, title: 'Kartu Tanda Penduduk (KTP)', desc: 'Scan KTP pemohon yang masih berlaku.', icon: 'card-outline' },
@@ -380,7 +397,11 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
 
                     {/* Feedback List */}
                     {loading ? (
-                        <ActivityIndicator color="#FFC107" style={{ marginVertical: 20 }} />
+                        <>
+                            {[1, 2, 3].map((_, index) => (
+                                <ReviewItemSkeleton key={index} />
+                            ))}
+                        </>
                     ) : (
                         feedbacks.slice(0, 3).map((item) => (
                             <View key={item.id} style={styles.reviewItem}>

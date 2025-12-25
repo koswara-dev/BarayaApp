@@ -16,12 +16,17 @@ import NewsScreen from '../screens/NewsScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import OtpVerificationScreen from '../screens/OtpVerificationScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
-import PengaturanScreen from '../screens/PengaturanScreen';
+import PengaturanScreen from '../screens/admin/PengaturanScreen';
 import EventListScreen from '../screens/EventListScreen';
 import DinasListScreen from '../screens/DinasListScreen';
-import CreateEventScreen from '../screens/CreateEventScreen';
-import CreateDinasScreen from '../screens/CreateDinasScreen';
-import CreateLayananScreen from '../screens/CreateLayananScreen';
+import CreateEventScreen from '../screens/admin/CreateEventScreen';
+import PengaduanListScreen from '../screens/PengaduanListScreen';
+import PengaduanDetailScreen from '../screens/PengaduanDetailScreen';
+import AdminPengaduanListScreen from '../screens/admin/PengaduanListScreen';
+import AdminPengaduanDetailScreen from '../screens/admin/PengaduanDetailScreen';
+import CreateDinasScreen from '../screens/admin/CreateDinasScreen';
+import CreateLayananScreen from '../screens/admin/CreateLayananScreen';
+import CreatePengaduanScreen from '../screens/CreatePengaduanScreen';
 import ServiceHistoryScreen from '../screens/ServiceHistoryScreen';
 
 
@@ -61,6 +66,11 @@ export default function RootNavigator() {
             <Stack.Screen name="CreateEvent" component={CreateEventScreen} />
             <Stack.Screen name="CreateDinas" component={CreateDinasScreen} />
             <Stack.Screen name="CreateLayanan" component={CreateLayananScreen} />
+            <Stack.Screen name="CreatePengaduan" component={CreatePengaduanScreen} />
+            <Stack.Screen name="PengaduanList" component={PengaduanListScreen} />
+            <Stack.Screen name="PengaduanDetail" component={PengaduanDetailScreen} />
+            <Stack.Screen name="AdminPengaduanList" component={AdminPengaduanListScreen} />
+            <Stack.Screen name="AdminPengaduanDetail" component={AdminPengaduanDetailScreen} />
             <Stack.Screen name="ServiceHistory" component={ServiceHistoryScreen} />
           </>
         ) : (

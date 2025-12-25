@@ -23,6 +23,11 @@ export type RootStackParamList = {
     CreateEvent: undefined;
     CreateDinas: undefined;
     CreateLayanan: undefined;
+    CreatePengaduan: undefined;
+    PengaduanList: undefined;
+    PengaduanDetail: { item: any };
+    AdminPengaduanList: undefined;
+    AdminPengaduanDetail: { item: any };
 };
 
 export type BottomTabParamList = {

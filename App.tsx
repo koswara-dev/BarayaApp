@@ -15,6 +15,7 @@ import useNotificationStore from './src/stores/notificationStore';
 import useEmergencyStore from './src/stores/emergencyStore';
 import GlobalEmergencyModal from './src/components/GlobalEmergencyModal';
 import notifee, { EventType } from '@notifee/react-native';
+import { navigate } from './src/navigation/navigationRef';
 
 
 
@@ -50,13 +51,21 @@ function App() {
     const unsubscribe = notifee.onForegroundEvent(({ type, detail }) => {
       if (type === EventType.PRESS) {
         const { notification } = detail;
-        // If it's an emergency notification, show the global modal
-        const isEmergency = notification?.data?.judul === "Pesan Darurat!" || notification?.android?.channelId === 'emergency';
+        const data = notification?.data;
+
+        // Ensure data exists and check category
+        const isEmergency = data?.category === 'DARURAT' ||
+          notification?.android?.channelId === 'emergency' ||
+          notification?.title === "Pesan Darurat!" ||
+          data?.judul === "Pesan Darurat!";
 
         if (isEmergency) {
-          const eventId = notification?.data?.eventId || notification?.data?.id;
+          const eventId = data?.eventId || data?.referenceId || data?.id;
+          console.log('Emergency notification pressed, eventId:', eventId);
+
           if (eventId) {
-            useEmergencyStore.getState().showModalWithFetch(eventId as string);
+            // Show the global high-priority alert modal
+            useEmergencyStore.getState().showModalWithFetch(String(eventId));
           }
         }
       }
@@ -75,12 +84,19 @@ function App() {
     notifee.getInitialNotification().then((initialNotification) => {
       if (initialNotification) {
         const { notification } = initialNotification;
-        const isEmergency = notification?.data?.judul === "Pesan Darurat!" || notification?.android?.channelId === 'emergency';
+        const data = notification?.data;
+
+        const isEmergency = data?.category === 'DARURAT' ||
+          notification?.android?.channelId === 'emergency' ||
+          notification.title === "Pesan Darurat!" ||
+          data?.judul === "Pesan Darurat!";
 
         if (isEmergency) {
-          const eventId = notification?.data?.eventId || notification?.data?.id;
+          const eventId = data?.eventId || data?.referenceId || data?.id;
+          console.log('App opened from emergency notification, eventId:', eventId);
+
           if (eventId) {
-            useEmergencyStore.getState().showModalWithFetch(eventId as string);
+            useEmergencyStore.getState().showModalWithFetch(String(eventId));
           }
         }
       }

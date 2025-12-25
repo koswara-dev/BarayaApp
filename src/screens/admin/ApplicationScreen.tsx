@@ -20,8 +20,8 @@ import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
-import useToastStore from '../stores/toastStore';
+import { RootStackParamList } from '../../navigation/types';
+import useToastStore from '../../stores/toastStore';
 
 const { width } = Dimensions.get('window');
 
@@ -32,7 +32,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 // Define the menu structure based on the image
 const PUBLIC_SERVICES = [
-    { label: 'List\nPengaduan', icon: 'message-alert-outline', type: 'mci' }, // complaint list
+    { label: 'List\nPengaduan', icon: 'message-alert-outline', type: 'mci', route: 'AdminPengaduanList' }, // complaint list
     // { label: 'List\nLayanan', icon: 'room-service-outline', type: 'mci', route: 'ServiceHistory' }, // service list
     { label: 'List\nLayanan', icon: 'room-service-outline', type: 'mci' }, // service list
     { label: 'Rekap\nPengaduan', icon: 'chart-box-outline', type: 'mci' }, // recap complaint

@@ -4,36 +4,77 @@ import ReactNativeBlobUtil from 'react-native-blob-util';
 import api, { API_BASE_URL } from '../config/api';
 import useAuthStore from './authStore';
 import { compressImage } from '../utils/imageCompressor';
-import { Event, EventCreatePayload, EventUpdatePayload } from '../types/event';
 
-interface EventState {
-    events: Event[];
+export interface Pengaduan {
+    id: number;
+    pesan: string;
+    urlFoto: string | null;
+    status: string;
+    userId: number;
+    userNama: string;
+    dinasId: number;
+    dinasNama: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+interface PengaduanState {
+    list: Pengaduan[];
     loading: boolean;
     error: string | null;
     page: number;
     totalPages: number;
     hasMore: boolean;
 
-    fetchEvents: (params?: { page?: number; size?: number; isLoadMore?: boolean }) => Promise<void>;
-    createEvent: (data: any) => Promise<any>;
+    fetchPengaduan: (params?: { page?: number; size?: number; isLoadMore?: boolean }) => Promise<void>;
+    createPengaduan: (data: any) => Promise<any>;
+    updatePengaduanStatus: (id: number, status: string) => Promise<any>;
     clearError: () => void;
 }
 
-const useEventStore = create<EventState>((set, get) => ({
-    events: [],
+const usePengaduanStore = create<PengaduanState>((set, get) => ({
+    list: [],
     loading: false,
     error: null,
     page: 0,
     totalPages: 1,
     hasMore: true,
 
-    fetchEvents: async (params = {}) => {
+    updatePengaduanStatus: async (id, status) => {
+        set({ loading: true, error: null });
+        try {
+            const token = useAuthStore.getState().token;
+            if (!token) throw new Error("Authentication required");
+
+            const response = await api.put(`/pengaduan/${id}?status=${status}`, null);
+
+            if (response.data?.success) {
+                // Optimistic update locally
+                set((state) => ({
+                    list: state.list.map(item =>
+                        item.id === id ? { ...item, status: status } : item
+                    ),
+                    loading: false
+                }));
+                return response.data.data;
+            } else {
+                throw new Error(response.data?.message || "Gagal memperbarui status");
+            }
+        } catch (error: any) {
+            console.error('Update status error:', error);
+            const msg = error.response?.data?.message || error.message || 'Gagal memperbarui status';
+            set({ error: msg, loading: false });
+            throw new Error(msg);
+        }
+    },
+
+    fetchPengaduan: async (params = {}) => {
         const { page = 0, size = 10, isLoadMore = false } = params;
         if (get().loading && isLoadMore) return;
         set({ loading: true, error: null });
 
         try {
-            const res = await api.get('/event', {
+            const res = await api.get('/pengaduan', {
                 params: { page, size, sort: 'createdAt,desc' }
             });
 
@@ -43,39 +84,32 @@ const useEventStore = create<EventState>((set, get) => ({
                 const pagination = data.page || {};
 
                 set((state) => ({
-                    events: isLoadMore ? [...state.events, ...content] : content,
+                    list: isLoadMore ? [...state.list, ...content] : content,
                     page: pagination.number || 0,
-                    totalPages: pagination.totalPages || 0,
+                    totalPages: pagination.totalPages || 1,
                     hasMore: (pagination.number + 1) < (pagination.totalPages || 0),
                 }));
             } else {
-                set({ error: res.data.message || 'Gagal memuat event' });
+                set({ error: res.data.message || 'Gagal memuat daftar pengaduan' });
             }
         } catch (error: any) {
-            console.error('Fetch events error:', error);
-            set({ error: error.response?.data?.message || error.message || 'Terjadi kesalahan saat memuat event' });
+            console.error('Fetch pengaduan error:', error);
+            set({ error: error.response?.data?.message || error.message || 'Terjadi kesalahan saat memuat pengaduan' });
         } finally {
             set({ loading: false });
         }
     },
 
-    createEvent: async (data) => {
+    createPengaduan: async (data) => {
         set({ loading: true, error: null });
         try {
             const token = useAuthStore.getState().token;
             if (!token) throw new Error("Authentication required");
 
             const parts: any[] = [
-                { name: 'judul', data: data.judul },
-                { name: 'deskripsi', data: data.deskripsi },
-                { name: 'tanggalMulai', data: data.tanggalMulai },
-                { name: 'tanggalSelesai', data: data.tanggalSelesai },
-                { name: 'lokasi', data: data.lokasi },
+                { name: 'pesan', data: data.pesan },
                 { name: 'dinasId', data: String(data.dinasId) },
             ];
-
-            if (data.latitude !== undefined && data.latitude !== null) parts.push({ name: 'latitude', data: String(data.latitude) });
-            if (data.longitude !== undefined && data.longitude !== null) parts.push({ name: 'longitude', data: String(data.longitude) });
 
             if (data.foto && data.foto.uri) {
                 const fileType = data.foto.type || 'image/jpeg';
@@ -83,7 +117,7 @@ const useEventStore = create<EventState>((set, get) => ({
 
                 if (compressedUri) {
                     const extension = fileType.includes('png') ? '.png' : '.jpg';
-                    const fileName = data.foto.fileName || `event_${Date.now()}${extension}`;
+                    const fileName = data.foto.fileName || `pengaduan_${Date.now()}${extension}`;
 
                     let uri = compressedUri;
                     if (Platform.OS === 'ios') {
@@ -91,7 +125,7 @@ const useEventStore = create<EventState>((set, get) => ({
                     }
 
                     parts.push({
-                        name: 'gambar',
+                        name: 'foto',
                         filename: fileName,
                         type: fileType,
                         data: ReactNativeBlobUtil.wrap(uri)
@@ -99,9 +133,9 @@ const useEventStore = create<EventState>((set, get) => ({
                 }
             }
 
-            console.log('Posting Event Multipart to:', `${API_BASE_URL}/event`);
+            console.log('Posting Pengaduan Multipart to:', `${API_BASE_URL}/pengaduan`);
 
-            const response = await ReactNativeBlobUtil.fetch('POST', `${API_BASE_URL}/event`, {
+            const response = await ReactNativeBlobUtil.fetch('POST', `${API_BASE_URL}/pengaduan`, {
                 Authorization: `Bearer ${token}`,
                 'Content-Type': 'multipart/form-data',
             }, parts);
@@ -121,21 +155,21 @@ const useEventStore = create<EventState>((set, get) => ({
             if (responseStatus >= 200 && responseStatus < 300 && responseData.success) {
                 const result = responseData.data || true;
 
+                console.log('CreatePengaduan Result:', result); // DEBUG Log
+
+                // Removed manual notification trigger to avoid duplication
+                // with backend-generated 'Pengaduan Baru' notification.
+
+
                 return result;
             } else {
-                const errorMsg = responseData.message || `Gagal membuat event (Status: ${responseStatus})`;
+                const errorMsg = responseData.message || `Gagal mengirim pengaduan (Status: ${responseStatus})`;
                 set({ error: errorMsg });
                 throw new Error(errorMsg);
             }
         } catch (error: any) {
-            console.error('Create event error:', error);
-            let finalMsg = error.message || 'Terjadi kesalahan saat membuat event';
-
-            // Handle specific backend DB errors
-            if (finalMsg.includes('duplicate key value') || finalMsg.includes('unique constraint')) {
-                finalMsg = 'Gagal menyimpan: Terjadi konflik data pada Server (ID Conflict). Mohon hubungi admin untuk reset database sequence.';
-            }
-
+            console.error('Create pengaduan error:', error);
+            const finalMsg = error.message || 'Terjadi kesalahan saat mengirim pengaduan';
             set({ error: finalMsg });
             throw new Error(finalMsg);
         } finally {
@@ -146,4 +180,4 @@ const useEventStore = create<EventState>((set, get) => ({
     clearError: () => set({ error: null }),
 }));
 
-export default useEventStore;
+export default usePengaduanStore;

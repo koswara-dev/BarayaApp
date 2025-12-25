@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
     View,
     Text,
@@ -11,6 +11,7 @@ import {
     ActivityIndicator,
     RefreshControl,
     Dimensions,
+    Animated,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -19,13 +20,79 @@ import { getImageUrl } from '../config/api';
 
 const { width } = Dimensions.get('window');
 
+// Skeleton Shimmer Component
+const SkeletonShimmer = ({ style }: { style?: any }) => {
+    const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(shimmerAnim, {
+                    toValue: 1,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(shimmerAnim, {
+                    toValue: 0,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+            ])
+        ).start();
+    }, []);
+
+    const opacity = shimmerAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.3, 0.7],
+    });
+
+    return (
+        <Animated.View
+            style={[
+                {
+                    backgroundColor: '#E2E8F0',
+                },
+                style,
+                { opacity },
+            ]}
+        />
+    );
+};
+
+// Skeleton Card Component
+const EventCardSkeleton = () => (
+    <View style={styles.eventCard}>
+        <SkeletonShimmer style={styles.eventImage} />
+        <View style={styles.eventDetails}>
+            <View style={styles.categoryRow}>
+                <SkeletonShimmer style={{ width: 80, height: 20 }} />
+            </View>
+            <SkeletonShimmer style={{ width: '90%', height: 18, marginBottom: 8 }} />
+            <SkeletonShimmer style={{ width: '60%', height: 18, marginBottom: 12 }} />
+            <View style={styles.infoRow}>
+                <SkeletonShimmer style={{ width: 14, height: 14 }} />
+                <SkeletonShimmer style={{ width: 150, height: 12, marginLeft: 8 }} />
+            </View>
+            <View style={styles.infoRow}>
+                <SkeletonShimmer style={{ width: 14, height: 14 }} />
+                <SkeletonShimmer style={{ width: 120, height: 12, marginLeft: 8 }} />
+            </View>
+        </View>
+    </View>
+);
+
 export default function EventListScreen() {
     const navigation = useNavigation<any>();
     const { events, loading, fetchEvents, hasMore, page } = useEventStore();
     const [refreshing, setRefreshing] = useState(false);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     useEffect(() => {
-        fetchEvents({ page: 0 });
+        const loadData = async () => {
+            await fetchEvents({ page: 0 });
+            setIsInitialLoad(false);
+        };
+        loadData();
     }, []);
 
     const onRefresh = async () => {
@@ -50,6 +117,9 @@ export default function EventListScreen() {
             minute: '2-digit'
         });
     };
+
+    // Show skeleton on initial load
+    const showSkeleton = isInitialLoad && loading;
 
     return (
         <View style={styles.container}>
@@ -76,7 +146,13 @@ export default function EventListScreen() {
                     if (isCloseToBottom) handleLoadMore();
                 }}
             >
-                {events.length === 0 && !loading ? (
+                {showSkeleton ? (
+                    <View style={styles.eventList}>
+                        {[1, 2, 3].map((_, index) => (
+                            <EventCardSkeleton key={index} />
+                        ))}
+                    </View>
+                ) : events.length === 0 && !loading ? (
                     <View style={styles.emptyContainer}>
                         <Icon name="calendar-outline" size={64} color="#E2E8F0" />
                         <Text style={styles.emptyText}>Belum ada agenda kegiatan</Text>
@@ -118,7 +194,7 @@ export default function EventListScreen() {
                     </View>
                 )}
 
-                {loading && (
+                {loading && !isInitialLoad && (
                     <View style={styles.loadingFooter}>
                         <ActivityIndicator color="#F59E0B" />
                     </View>

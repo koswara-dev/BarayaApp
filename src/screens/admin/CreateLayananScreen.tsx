@@ -9,36 +9,54 @@ import {
     StatusBar,
     KeyboardAvoidingView,
     Modal,
+    FlatList,
     ActivityIndicator,
     Animated,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-import useLayananStore from '../stores/layananStore';
-import useToastStore from '../stores/toastStore';
-import LoadingOverlay from '../components/LoadingOverlay';
-import IndustrialFormSection from '../components/Form/IndustrialFormSection';
-import IndustrialInput from '../components/Form/IndustrialInput';
+import useLayananStore from '../../stores/layananStore';
+import useToastStore from '../../stores/toastStore';
+import useNotificationStore from '../../stores/notificationStore';
+import LoadingOverlay from '../../components/LoadingOverlay';
+import IndustrialFormSection from '../../components/Form/IndustrialFormSection';
+import IndustrialInput from '../../components/Form/IndustrialInput';
 
-export default function CreateDinasScreen() {
+export default function CreateLayananScreen() {
     const navigation = useNavigation<any>();
-    const { createDinas, loading } = useLayananStore();
+    const { createLayanan, dinas, fetchDinas, loading } = useLayananStore();
+    const { sendNotification } = useNotificationStore();
     const showToast = useToastStore((state) => state.showToast);
 
     const [form, setForm] = useState({
         nama: '',
         deskripsi: '',
-        alamat: '',
-        latitude: '',
-        longitude: '',
-        website: '',
-        namaKadis: '',
+        informasiDetail: '',
+        estimasiWaktu: '',
+        phoneNumber: '',
+        email: '',
+        dinasId: null as number | null,
+        dinasNama: '',
     });
 
+    const [dinasModalVisible, setDinasModalVisible] = useState(false);
     const [confirmModalVisible, setConfirmModalVisible] = useState(false);
 
     // Animation values
+    const [slideAnimDinas] = useState(new Animated.Value(300));
     const [slideAnimConfirm] = useState(new Animated.Value(300));
+
+    useEffect(() => {
+        if (dinasModalVisible) {
+            Animated.timing(slideAnimDinas, {
+                toValue: 0,
+                duration: 300,
+                useNativeDriver: true,
+            }).start();
+        } else {
+            slideAnimDinas.setValue(300);
+        }
+    }, [dinasModalVisible]);
 
     useEffect(() => {
         if (confirmModalVisible) {
@@ -52,9 +70,13 @@ export default function CreateDinasScreen() {
         }
     }, [confirmModalVisible]);
 
+    useEffect(() => {
+        fetchDinas();
+    }, []);
+
     const handleSave = () => {
-        if (!form.nama || !form.deskripsi || !form.alamat || !form.namaKadis) {
-            showToast('Field Nama, Deskripsi, Alamat, dan Nama Kadis wajib diisi', 'error');
+        if (!form.nama || !form.deskripsi || !form.dinasId) {
+            showToast('Field Nama, Deskripsi, dan Dinas wajib diisi', 'error');
             return;
         }
         setConfirmModalVisible(true);
@@ -63,16 +85,29 @@ export default function CreateDinasScreen() {
     const confirmSubmit = async () => {
         setConfirmModalVisible(false);
         try {
-            await createDinas({
-                ...form,
-                latitude: form.latitude ? parseFloat(form.latitude) : null,
-                longitude: form.longitude ? parseFloat(form.longitude) : null,
+            const result = await createLayanan({
+                nama: form.nama,
+                deskripsi: form.deskripsi,
+                informasiDetail: form.informasiDetail,
+                estimasiWaktu: form.estimasiWaktu ? parseInt(form.estimasiWaktu) : 1,
+                phoneNumber: form.phoneNumber,
+                email: form.email,
+                dinasId: form.dinasId,
             });
-            showToast('Dinas berhasil dibuat', 'success');
+
+            // Removed manual notification trigger (backend handles it)
+
+
+            showToast('Layanan berhasil dibuat', 'success');
             navigation.goBack();
         } catch (err: any) {
-            showToast(err.message || 'Gagal membuat dinas', 'error');
+            showToast(err.message || 'Gagal membuat layanan', 'error');
         }
+    };
+
+    const selectDinas = (item: any) => {
+        setForm({ ...form, dinasId: item.id, dinasNama: item.nama });
+        setDinasModalVisible(false);
     };
 
     return (
@@ -84,7 +119,7 @@ export default function CreateDinasScreen() {
 
             <LoadingOverlay
                 visible={loading}
-                message="Sedang Menyimpan Data Dinas..."
+                message="Sedang Menyimpan Data Layanan..."
             />
 
             {/* Header */}
@@ -92,7 +127,7 @@ export default function CreateDinasScreen() {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Icon name="arrow-back" size={24} color="#0F172A" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Buat Dinas Baru</Text>
+                <Text style={styles.headerTitle}>Buat Layanan Baru</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -101,10 +136,10 @@ export default function CreateDinasScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 40 }}
             >
-                <IndustrialFormSection title="INFORMASI DINAS" stripeColor="#FFB800" />
+                <IndustrialFormSection title="INFORMASI LAYANAN" stripeColor="#FFB800" />
 
                 <IndustrialInput
-                    placeholder="Nama Instansi / Dinas"
+                    placeholder="Nama Layanan (contoh: Pembuatan KTP)"
                     value={form.nama}
                     onChangeText={(val) => setForm({ ...form, nama: val })}
                     style={{ fontWeight: '900' }}
@@ -121,51 +156,59 @@ export default function CreateDinasScreen() {
                     showCounter
                 />
 
-                <IndustrialFormSection title="KEPEMIMPINAN & KONTAK" stripeColor="#3B82F6" />
-
-                <IndustrialInput
-                    placeholder="Nama Kepala Dinas"
-                    value={form.namaKadis}
-                    onChangeText={(val) => setForm({ ...form, namaKadis: val })}
-                />
-
                 <View style={{ height: 12 }} />
 
                 <IndustrialInput
-                    placeholder="Website Resmi (https://...)"
-                    value={form.website}
-                    onChangeText={(val) => setForm({ ...form, website: val })}
-                />
-
-                <IndustrialFormSection title="LOKASI & ALAMAT" stripeColor="#E11D48" />
-
-                <IndustrialInput
-                    placeholder="Alamat Lengkap"
+                    placeholder="Informasi Detail / Persyaratan..."
                     multiline
-                    value={form.alamat}
-                    onChangeText={(val) => setForm({ ...form, alamat: val })}
+                    value={form.informasiDetail}
+                    onChangeText={(val) => setForm({ ...form, informasiDetail: val })}
                 />
 
-                <View style={{ height: 12 }} />
+                <IndustrialFormSection title="INSTANSI PENANGGUNG JAWAB" stripeColor="#3B82F6" />
+
+                <TouchableOpacity
+                    style={styles.dinasSelector}
+                    onPress={() => setDinasModalVisible(true)}
+                >
+                    <View style={styles.dinasSelectorInner}>
+                        <Icon name="business-outline" size={20} color="#64748B" />
+                        <Text style={[styles.dinasValue, !form.dinasId && { color: '#94A3B8' }]}>
+                            {form.dinasNama || "Pilih Dinas / Instansi"}
+                        </Text>
+                    </View>
+                    <Icon name="chevron-down" size={20} color="#64748B" />
+                </TouchableOpacity>
+
+                <IndustrialFormSection title="KONTAK & ESTIMASI" stripeColor="#E11D48" />
 
                 <View style={styles.row}>
                     <View style={styles.col}>
                         <IndustrialInput
-                            placeholder="Latitude"
-                            keyboardType="numeric"
-                            value={form.latitude}
-                            onChangeText={(val) => setForm({ ...form, latitude: val })}
+                            placeholder="No. Telepon"
+                            keyboardType="phone-pad"
+                            value={form.phoneNumber}
+                            onChangeText={(val) => setForm({ ...form, phoneNumber: val })}
                         />
                     </View>
                     <View style={styles.col}>
                         <IndustrialInput
-                            placeholder="Longitude"
-                            keyboardType="numeric"
-                            value={form.longitude}
-                            onChangeText={(val) => setForm({ ...form, longitude: val })}
+                            placeholder="Email"
+                            keyboardType="email-address"
+                            value={form.email}
+                            onChangeText={(val) => setForm({ ...form, email: val })}
                         />
                     </View>
                 </View>
+
+                <View style={{ height: 12 }} />
+
+                <IndustrialInput
+                    placeholder="Estimasi Waktu (Hari)"
+                    keyboardType="numeric"
+                    value={form.estimasiWaktu}
+                    onChangeText={(val) => setForm({ ...form, estimasiWaktu: val })}
+                />
 
                 {/* Footer Action matching CreateEvent style */}
                 <View style={styles.footer}>
@@ -178,7 +221,7 @@ export default function CreateDinasScreen() {
                             <ActivityIndicator color="#0F172A" />
                         ) : (
                             <View style={styles.publishBtnInner}>
-                                <Text style={styles.publishBtnText}>SIMPAN DATA DINAS</Text>
+                                <Text style={styles.publishBtnText}>SIMPAN DATA LAYANAN</Text>
                                 <Icon name="save-outline" size={20} color="#0F172A" />
                             </View>
                         )}
@@ -186,6 +229,37 @@ export default function CreateDinasScreen() {
                 </View>
 
             </ScrollView>
+
+            {/* Selection Modal */}
+            <Modal visible={dinasModalVisible} animationType="fade" transparent>
+                <View style={styles.modalOverlay}>
+                    <Animated.View
+                        style={[
+                            styles.modalContent,
+                            { transform: [{ translateY: slideAnimDinas }] }
+                        ]}
+                    >
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>PILIH INSTANSI</Text>
+                            <TouchableOpacity onPress={() => setDinasModalVisible(false)}>
+                                <Icon name="close" size={24} color="#64748B" />
+                            </TouchableOpacity>
+                        </View>
+                        <FlatList
+                            data={dinas}
+                            keyExtractor={(item) => String(item.id)}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity
+                                    style={styles.dinasItem}
+                                    onPress={() => selectDinas(item)}
+                                >
+                                    <Text style={styles.dinasItemText}>{item.nama}</Text>
+                                </TouchableOpacity>
+                            )}
+                        />
+                    </Animated.View>
+                </View>
+            </Modal>
 
             {/* Confirmation Modal */}
             <Modal visible={confirmModalVisible} transparent animationType="fade">
@@ -197,7 +271,7 @@ export default function CreateDinasScreen() {
                         ]}
                     >
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>KONFIRMASI DATA DINAS</Text>
+                            <Text style={styles.modalTitle}>KONFIRMASI DATA LAYANAN</Text>
                             <TouchableOpacity onPress={() => setConfirmModalVisible(false)}>
                                 <Icon name="close" size={24} color="#64748B" />
                             </TouchableOpacity>
@@ -205,7 +279,7 @@ export default function CreateDinasScreen() {
 
                         <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 400 }}>
                             <View style={styles.summaryItem}>
-                                <Text style={styles.summaryLabel}>NAMA DINAS</Text>
+                                <Text style={styles.summaryLabel}>NAMA LAYANAN</Text>
                                 <Text style={styles.summaryValue}>{form.nama}</Text>
                             </View>
 
@@ -215,44 +289,38 @@ export default function CreateDinasScreen() {
                             </View>
 
                             <View style={styles.summaryItem}>
-                                <Text style={styles.summaryLabel}>KEPALA DINAS</Text>
+                                <Text style={styles.summaryLabel}>INSTANSI PENANGGUNG JAWAB</Text>
                                 <View style={styles.summaryRowInner}>
-                                    <Icon name="person" size={16} color="#3B82F6" />
-                                    <Text style={styles.summaryValue}>{form.namaKadis}</Text>
+                                    <Icon name="business" size={16} color="#3B82F6" />
+                                    <Text style={styles.summaryValue}>{form.dinasNama}</Text>
                                 </View>
                             </View>
 
                             <View style={styles.summaryItem}>
-                                <Text style={styles.summaryLabel}>ALAMAT LENGKAP</Text>
-                                <View style={styles.summaryRowInner}>
-                                    <Icon name="location" size={16} color="#E11D48" />
-                                    <Text style={[styles.summaryValue, { fontWeight: '500' }]}>{form.alamat}</Text>
+                                <Text style={styles.summaryLabel}>ESTIMASI WAKTU PENGERJAAN</Text>
+                                <View style={styles.tag}>
+                                    <Text style={styles.tagText}>{form.estimasiWaktu || '1'} HARI KERJA</Text>
                                 </View>
                             </View>
 
                             <View style={styles.summaryItem}>
-                                <Text style={styles.summaryLabel}>WEBSITE</Text>
+                                <Text style={styles.summaryLabel}>KONTAK LAYANAN</Text>
                                 <View style={styles.summaryRowInner}>
-                                    <Icon name="globe" size={16} color="#FFB800" />
-                                    <Text style={styles.summaryValue}>{form.website || '-'}</Text>
+                                    <Icon name="call" size={16} color="#10B981" />
+                                    <Text style={styles.summaryValue}>{form.phoneNumber || '-'}</Text>
+                                </View>
+                                <View style={styles.summaryRowInner}>
+                                    <Icon name="mail" size={16} color="#64748B" />
+                                    <Text style={[styles.summaryValue, { fontWeight: '500' }]}>{form.email || '-'}</Text>
                                 </View>
                             </View>
-
-                            {form.latitude && form.longitude && (
-                                <View style={styles.summaryItem}>
-                                    <Text style={styles.summaryLabel}>KOORDINAT (LAT/LNG)</Text>
-                                    <View style={styles.tag}>
-                                        <Text style={styles.tagText}>{form.latitude}, {form.longitude}</Text>
-                                    </View>
-                                </View>
-                            )}
                         </ScrollView>
 
                         <TouchableOpacity
                             style={styles.confirmBtn}
                             onPress={confirmSubmit}
                         >
-                            <Text style={styles.confirmBtnText}>YA, SIMPAN DATA SEKARANG</Text>
+                            <Text style={styles.confirmBtnText}>YA, SIMPAN LAYANAN SEKARANG</Text>
                             <Icon name="checkmark-circle" size={20} color="#0F172A" />
                         </TouchableOpacity>
                     </Animated.View>
@@ -302,6 +370,26 @@ const styles = StyleSheet.create({
     col: {
         flex: 1,
     },
+    dinasSelector: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 16,
+        paddingVertical: 18,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    dinasSelectorInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    dinasValue: {
+        fontSize: 13,
+        fontWeight: '800',
+        color: '#1E293B',
+    },
     footer: {
         marginTop: 24,
     },
@@ -326,7 +414,29 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         letterSpacing: 1,
     },
-    // Modal Styles
+    // Modal Selection
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(15, 23, 42, 0.8)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#FFFFFF',
+        padding: 24,
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+    },
+    dinasItem: {
+        paddingVertical: 18,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    dinasItemText: {
+        fontSize: 14,
+        color: '#334155',
+        fontWeight: '700',
+    },
+    // Confirmation Modal
     confirmOverlay: {
         flex: 1,
         backgroundColor: 'rgba(15, 23, 42, 0.9)',
@@ -339,6 +449,7 @@ const styles = StyleSheet.create({
         borderRadius: 0,
         borderWidth: 2,
         borderColor: '#0F172A',
+        width: '100%',
     },
     modalHeader: {
         flexDirection: 'row',
@@ -347,7 +458,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     modalTitle: {
-        fontSize: 14,
+        fontSize: 12,
         fontWeight: '900',
         color: '#0F172A',
         letterSpacing: 1,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -12,6 +12,29 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
+import SkeletonShimmer from '../components/SkeletonShimmer';
+
+// Skeleton Card for Service History
+const HistoryCardSkeleton = () => (
+    <View style={styles.card}>
+        <SkeletonShimmer style={styles.iconContainer} />
+        <View style={styles.cardContent}>
+            <View style={styles.cardHeader}>
+                <SkeletonShimmer style={{ width: '60%', height: 15, marginRight: 8 }} />
+                <SkeletonShimmer style={{ width: 70, height: 20 }} />
+            </View>
+            <SkeletonShimmer style={{ width: '90%', height: 13, marginBottom: 6 }} />
+            <SkeletonShimmer style={{ width: '70%', height: 13, marginBottom: 12 }} />
+            <View style={styles.cardFooter}>
+                <View style={styles.metaRow}>
+                    <SkeletonShimmer style={{ width: 80, height: 11 }} />
+                    <View style={styles.metaDivider} />
+                    <SkeletonShimmer style={{ width: 70, height: 11 }} />
+                </View>
+            </View>
+        </View>
+    </View>
+);
 
 interface HistoryItem {
     id: string;
@@ -102,6 +125,13 @@ export default function ServiceHistoryScreen() {
     const [activeTab, setActiveTab] = useState('Semua');
     const [searchQuery, setSearchQuery] = useState('');
     const [refreshing, setRefreshing] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        // Simulate initial loading
+        const timer = setTimeout(() => setIsLoading(false), 800);
+        return () => clearTimeout(timer);
+    }, []);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -199,53 +229,63 @@ export default function ServiceHistoryScreen() {
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FFB800']} />
                 }
             >
-                {filteredItems.map(item => {
-                    const statusStyle = getStatusStyle(item.status);
-                    return (
-                        <TouchableOpacity key={item.id} style={styles.card} activeOpacity={0.7}>
-                            {/* Icon Section */}
-                            <View style={[styles.iconContainer, { backgroundColor: item.iconBg }]}>
-                                <Icon name={item.icon} size={24} color={item.iconColor} />
-                            </View>
-
-                            <View style={styles.cardContent}>
-                                {/* Header with Title and Status Badge */}
-                                <View style={styles.cardHeader}>
-                                    <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-                                    <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                                        <View style={[styles.statusDot, { backgroundColor: statusStyle.dot }]} />
-                                        <Text style={[styles.statusText, { color: statusStyle.text }]}>{item.status}</Text>
-                                    </View>
-                                </View>
-
-                                {/* Description */}
-                                <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
-
-                                {/* Footer Info */}
-                                <View style={styles.cardFooter}>
-                                    <View style={styles.metaRow}>
-                                        <View style={styles.metaItem}>
-                                            <Icon name="calendar-outline" size={13} color="#94A3B8" />
-                                            <Text style={styles.metaText}>{item.date}</Text>
-                                        </View>
-                                        <View style={styles.metaDivider} />
-                                        <View style={styles.metaItem}>
-                                            <Icon name="document-text-outline" size={13} color="#94A3B8" />
-                                            <Text style={styles.metaText}>{item.reqId}</Text>
-                                        </View>
+                {isLoading ? (
+                    <>
+                        {[1, 2, 3, 4].map((_, index) => (
+                            <HistoryCardSkeleton key={index} />
+                        ))}
+                    </>
+                ) : (
+                    <>
+                        {filteredItems.map(item => {
+                            const statusStyle = getStatusStyle(item.status);
+                            return (
+                                <TouchableOpacity key={item.id} style={styles.card} activeOpacity={0.7}>
+                                    {/* Icon Section */}
+                                    <View style={[styles.iconContainer, { backgroundColor: item.iconBg }]}>
+                                        <Icon name={item.icon} size={24} color={item.iconColor} />
                                     </View>
 
-                                    {item.meta && (
-                                        <View style={styles.metaBadge}>
-                                            {item.metaIcon && <Icon name={item.metaIcon} size={12} color={item.metaColor} />}
-                                            <Text style={[styles.metaBadgeText, { color: item.metaColor }]}>{item.meta}</Text>
+                                    <View style={styles.cardContent}>
+                                        {/* Header with Title and Status Badge */}
+                                        <View style={styles.cardHeader}>
+                                            <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                                            <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                                                <View style={[styles.statusDot, { backgroundColor: statusStyle.dot }]} />
+                                                <Text style={[styles.statusText, { color: statusStyle.text }]}>{item.status}</Text>
+                                            </View>
                                         </View>
-                                    )}
-                                </View>
-                            </View>
-                        </TouchableOpacity>
-                    );
-                })}
+
+                                        {/* Description */}
+                                        <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
+
+                                        {/* Footer Info */}
+                                        <View style={styles.cardFooter}>
+                                            <View style={styles.metaRow}>
+                                                <View style={styles.metaItem}>
+                                                    <Icon name="calendar-outline" size={13} color="#94A3B8" />
+                                                    <Text style={styles.metaText}>{item.date}</Text>
+                                                </View>
+                                                <View style={styles.metaDivider} />
+                                                <View style={styles.metaItem}>
+                                                    <Icon name="document-text-outline" size={13} color="#94A3B8" />
+                                                    <Text style={styles.metaText}>{item.reqId}</Text>
+                                                </View>
+                                            </View>
+
+                                            {item.meta && (
+                                                <View style={styles.metaBadge}>
+                                                    {item.metaIcon && <Icon name={item.metaIcon} size={12} color={item.metaColor} />}
+                                                    <Text style={[styles.metaBadgeText, { color: item.metaColor }]}>{item.meta}</Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </>
+                )}
 
                 {filteredItems.length === 0 && (
                     <View style={styles.emptyContainer}>

@@ -88,7 +88,7 @@ const useEmergencyStore = create<EmergencyStore>()(
             fetchMyActiveReport: async (userId) => {
                 set({ loading: true, error: null });
                 try {
-                    const response = await api.get('/notifikasi-darurat');
+                    const response = await api.get('/darurat');
                     if (response.data.success) {
                         const allReports: EmergencyReport[] = response.data.data.content || [];
 
@@ -155,7 +155,7 @@ const useEmergencyStore = create<EmergencyStore>()(
                         }
                     }
 
-                    const response = await ReactNativeBlobUtil.fetch('POST', `${API_BASE_URL}/notifikasi-darurat`, {
+                    const response = await ReactNativeBlobUtil.fetch('POST', `${API_BASE_URL}/darurat`, {
                         Authorization: `Bearer ${token}`,
                         'Content-Type': 'multipart/form-data',
                     }, parts);
@@ -222,29 +222,59 @@ const useEmergencyStore = create<EmergencyStore>()(
             },
 
             showModalWithFetch: async (eventId) => {
-                set({ loading: true });
+                if (!eventId) return;
+                const idStr = String(eventId);
+                console.log('Fetching emergency report for modal:', idStr);
+
+                set({ loading: true, showEmergencyModal: true, modalData: null, error: null });
+
                 try {
-                    // Fetch all reports (or you could add a dedicated GET /id endpoint later)
-                    const response = await api.get('/notifikasi-darurat');
+                    // 1. Try to find in existing store reports first
+                    const existing = get().reports.find(r => String(r.id) === idStr);
+                    if (existing) {
+                        set({ modalData: existing, loading: false });
+                        return;
+                    }
+
+                    // 2. Try fetching specific report by ID directly (REST standard)
+                    try {
+                        const directRes = await api.get(`/darurat/${idStr}`);
+                        if (directRes.data.success && directRes.data.data) {
+                            set({ modalData: directRes.data.data, loading: false });
+                            return;
+                        }
+                    } catch (e) {
+                        console.log('Direct fetch by ID not supported or failed, falling back to list...');
+                    }
+
+                    // 3. Fallback: Search in recent list
+                    const response = await api.get('/darurat?size=50');
                     if (response.data.success) {
                         const allReports: EmergencyReport[] = response.data.data.content || [];
-                        const found = allReports.find(r => String(r.id) === String(eventId));
+                        const found = allReports.find(r => String(r.id) === idStr);
 
                         if (found) {
-                            set({
-                                modalData: found,
-                                showEmergencyModal: true,
-                                loading: false
-                            });
+                            set({ modalData: found, loading: false });
                         } else {
-                            set({ loading: false });
+                            console.log(`Report ${idStr} not found in recent list`);
+
+                            // 4. Last resort: if we have an activeReport and it's what they probably meant
+                            const active = get().activeReport;
+                            if (active) {
+                                set({ modalData: active, loading: false });
+                            } else {
+                                set({
+                                    loading: false,
+                                    error: 'Laporan tidak ditemukan. Mungkin laporan sudah lama atau telah dihapus.'
+                                });
+                            }
                         }
                     } else {
-                        set({ loading: false });
+                        set({ loading: false, error: 'Gagal menghubungi pusat data darurat' });
                     }
                 } catch (error) {
-                    console.log('Error fetching emergency by ID:', error);
-                    set({ loading: false });
+                    console.log('Error in showModalWithFetch:', error);
+                    set({ loading: false, error: 'Terjadi kesalahan koneksi' });
                 }
             }
         }),

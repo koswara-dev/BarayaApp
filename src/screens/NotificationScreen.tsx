@@ -58,9 +58,15 @@ export default function NotificationScreen({ navigation }: any) {
     const sections = React.useMemo(() => {
         if (!notifications || notifications.length === 0) return [];
 
+        const sortedNotifications = [...notifications].sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0).getTime();
+            const dateB = new Date(b.createdAt || 0).getTime();
+            return dateB - dateA;
+        });
+
         const grouped: { [key: string]: any[] } = {};
 
-        notifications.forEach((item: any) => {
+        sortedNotifications.forEach((item: any) => {
             // item.createdAt expected from API, fallback to now if missing
             const dateStr = item.createdAt || new Date().toISOString();
             const sectionKey = getSectionTitle(dateStr);
@@ -73,12 +79,17 @@ export default function NotificationScreen({ navigation }: any) {
             // API: id, judul, pesan, createdAt, isRead?
             // UI: id, icon, iconColor, title, time, desc, unread
 
-            let icon = 'notifications';
+            let icon = 'megaphone';
             let iconColor = '#3B82F6'; // Default Blue
 
             // Simple logic to determine icon based on title/type
             const titleLower = (item.judul || '').toLowerCase();
-            if (titleLower.includes('darurat') || titleLower.includes('peringatan') || titleLower.includes('bencana')) {
+            const category = item.category || '';
+
+            if (category === 'EVENT' || titleLower.includes('layanan baru') || titleLower.includes('agenda')) {
+                icon = 'megaphone';
+                iconColor = '#3B82F6'; // Blue
+            } else if (titleLower.includes('darurat') || titleLower.includes('peringatan') || titleLower.includes('bencana')) {
                 icon = 'warning';
                 iconColor = '#EF4444'; // Red
             } else if (titleLower.includes('tagihan') || titleLower.includes('pembayaran')) {
@@ -87,9 +98,9 @@ export default function NotificationScreen({ navigation }: any) {
             } else if (titleLower.includes('listrik') || titleLower.includes('pln')) {
                 icon = 'flash';
                 iconColor = '#F59E0B'; // Amber
-            } else if (titleLower.includes('pengaduan') || titleLower.includes('laporan')) {
-                icon = 'headset';
-                iconColor = '#3B82F6';
+            } else if (titleLower.includes('pengaduan') || titleLower.includes('laporan') || titleLower.includes('aduan')) {
+                icon = 'megaphone';
+                iconColor = '#F59E0B'; // Amber matching the yellow theme
             } else if (titleLower.includes('update') || titleLower.includes('aplikasi')) {
                 icon = 'refresh';
                 iconColor = '#64748B';

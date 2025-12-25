@@ -33,7 +33,7 @@ export default function ProfileScreen({ navigation }: any) {
             setCurrentCity(city.toUpperCase());
         } catch (error) {
             console.log('Location error:', error);
-            setCurrentCity('INDONESIA');
+            setCurrentCity('LOKASI TIDAK DITEMUKAN');
         }
     };
 
@@ -136,7 +136,7 @@ export default function ProfileScreen({ navigation }: any) {
                         <Icon name="chevron-forward" size={18} color="#CBD5E1" />
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('ComplaintHistory')}>
+                    <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('PengaduanList')}>
                         <View style={[styles.menuIconBox, { backgroundColor: '#FFF7ED' }]}>
                             <Icon name="chatbox-ellipses" size={20} color="#F97316" />
                         </View>

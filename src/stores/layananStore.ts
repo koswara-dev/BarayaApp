@@ -41,9 +41,9 @@ const useLayananStore = create<LayananStore>((set, get) => ({
                 size
             };
 
-            // Only add name parameter if it is a valid string
+            // Only add nama parameter if it is a valid string
             if (name) {
-                apiParams.name = name;
+                apiParams.nama = name;
             }
 
             const response = await api.get("/layanan", { params: apiParams });
