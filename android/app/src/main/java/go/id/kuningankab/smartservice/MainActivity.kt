@@ -1,4 +1,4 @@
-package com.barayaapp
+package go.id.kuningankab.smartservice
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

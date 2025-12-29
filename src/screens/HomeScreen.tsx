@@ -10,26 +10,78 @@ import {
   Dimensions,
   StatusBar,
   SafeAreaView,
-  Platform
+  Platform,
+  ActivityIndicator,
+  RefreshControl
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import useAuthStore from '../stores/authStore';
 import useUserStore from '../stores/userStore';
+import useLayananStore from '../stores/layananStore';
 import { getImageUrl } from '../config/api';
+import { useDebounce } from 'use-debounce';
 
 import GetLocation from 'react-native-get-location';
 
 const { width } = Dimensions.get('window');
+
+const getServiceIcon = (name: string, category?: string) => {
+  const lowerName = name.toLowerCase();
+  const lowerCat = category?.toLowerCase() || '';
+
+  if (lowerName.includes('ktp') || lowerName.includes('kk') || lowerName.includes('kependudukan')) return 'card-outline';
+  if (lowerName.includes('sehat') || lowerName.includes('medis') || lowerCat.includes('kesehatan')) return 'medical-outline';
+  if (lowerName.includes('pajak') || lowerCat.includes('pajak')) return 'calculator-outline';
+  if (lowerName.includes('izin')) return 'business-outline';
+  if (lowerName.includes('aduan') || lowerName.includes('megaphone')) return 'megaphone-outline';
+  if (lowerName.includes('ambulans')) return 'ambulance-outline';
+  if (lowerName.includes('map') || lowerName.includes('peta')) return 'map-outline';
+  if (lowerName.includes('berita')) return 'newspaper-outline';
+  if (lowerName.includes('bus') || lowerName.includes('trans')) return 'bus-outline';
+
+  return 'grid-outline';
+};
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
   const user = useAuthStore((state) => state.user);
   const { profile, fetchUserProfile } = useUserStore();
 
+  const {
+    layanan: featuredServices,
+    searchResults,
+    loading: isLoadingFeatured,
+    isSearching,
+    fetchLayanan,
+    searchLayanan
+  } = useLayananStore();
+
   const [weather, setWeather] = useState({ temp: '--', icon: 'partly-sunny', city: 'Mencari...' });
   const [activeBanner, setActiveBanner] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [debouncedSearch] = useDebounce(searchQuery, 300); // Fery fast debounce
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      useLayananStore.getState().searchLayanan(''); // Clear immediately
+    }
+  }, [searchQuery]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      fetchWeather(),
+      fetchLayanan({ size: 8 })
+    ]);
+    setRefreshing(false);
+  };
+
+  useEffect(() => {
+    searchLayanan(debouncedSearch);
+  }, [debouncedSearch]);
 
   const fetchWeather = async () => {
     try {
@@ -77,6 +129,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     fetchWeather();
+    fetchLayanan({ size: 8 });
   }, []); // Run once on mount
 
   const banners = [
@@ -120,46 +173,101 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor="#F0F4F8" barStyle="dark-content" />
 
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#FFC107']} // Android
+            tintColor="#FFC107" // iOS
+          />
+        }
+      >
 
         {/* Big Header Section */}
         <View style={styles.bigHeaderContainer}>
           <Image
-            source={{ uri: 'https://img.freepik.com/free-vector/gradient-dynamic-blue-lines-background_23-2148995756.jpg' }}
+            source={require('../assets/banner.png')}
             style={styles.headerBackground}
+            resizeMode="cover"
           />
           <View style={styles.headerOverlay}>
             <View style={styles.headerTopRow}>
-              <View style={styles.logoBox}>
-                <Text style={styles.logoText}>KAB</Text>
-                <Text style={styles.logoText}>KNG</Text>
-              </View>
+              <View />
               <TouchableOpacity onPress={() => navigation.navigate('Notifikasi')} style={styles.notifButton}>
                 <Icon name="notifications" size={24} color="#334155" />
                 <View style={styles.notifBadge} />
               </TouchableOpacity>
             </View>
-
-            <View style={styles.headerGreeting}>
-              <Text style={styles.greetingTitle}>Kuningan Melesat</Text>
-              <Text style={styles.greetingSubtitle}>SMART SERVICE</Text>
-              <Text style={styles.greetingDesc}>Akses layanan publik dengan mudah dan cepat dalam satu genggaman.</Text>
-            </View>
           </View>
         </View>
 
-        {/* Search Bar - Floating */}
-        <View style={styles.searchContainerFloating}>
-          <Icon name="search-outline" size={20} color="#94A3B8" style={{ marginRight: 8 }} />
-          <TextInput
-            placeholder="Cari Layanan di Kuningan..."
-            placeholderTextColor="#94A3B8"
-            style={styles.floatingSearchInput}
-          />
+        {/* Search & Autocomplete Container */}
+        <View style={{ zIndex: 100 }}>
+          {/* Search Bar - Floating */}
+          <View style={styles.searchContainerFloating}>
+            <Icon name="search-outline" size={20} color="#FFC107" style={{ marginRight: 8 }} />
+            <TextInput
+              placeholder="Cari Layanan di Kuningan..."
+              placeholderTextColor="#94A3B8"
+              style={styles.floatingSearchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {isSearching && <ActivityIndicator size="small" color="#FFC107" style={{ marginRight: 8 }} />}
+            {searchQuery.length > 0 && !isSearching && (
+              <TouchableOpacity onPress={() => {
+                setSearchQuery('');
+                useLayananStore.getState().searchLayanan('');
+              }}>
+                <Icon name="close-circle" size={18} color="#94A3B8" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Search Results Dropdown/List */}
+          {searchQuery.length > 0 && (
+            <View style={styles.searchResultsContainer}>
+              {searchResults.length > 0 ? (
+                searchResults.map((item: any) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.searchResultItem}
+                    onPress={() => {
+                      setSearchQuery('');
+                      useLayananStore.getState().searchLayanan('');
+                      navigation.navigate('ServiceDetail', { service: item });
+                    }}
+                  >
+                    <View style={[styles.searchResultIcon, { justifyContent: 'center', alignItems: 'center' }]}>
+                      <Icon name={getServiceIcon(item.nama_layanan || item.nama, item.kategori?.nama)} size={20} color="#FFC107" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.searchResultName} numberOfLines={1}>{item.nama_layanan || item.nama}</Text>
+                      <Text style={styles.searchResultCategory}>{item.kategori?.nama || item.dinasNama || 'Layanan'}</Text>
+                    </View>
+                    <Icon name="chevron-forward" size={16} color="#CBD5E1" />
+                  </TouchableOpacity>
+                ))
+              ) : (
+                !isSearching && (
+                  <View style={styles.noResultItem}>
+                    <Icon name="search-outline" size={32} color="#E2E8F0" />
+                    <Text style={styles.noResultText}>Ups! Layanan tidak ditemukan.</Text>
+                    <Text style={styles.noResultSub}>Coba kata kunci lain atau periksa ejaan.</Text>
+                  </View>
+                )
+              )}
+            </View>
+          )}
         </View>
 
-        {/* Menu Grid - 4 Columns x 2 Rows */}
-        <View style={styles.menuGridContainer}>
+        {/* Quick Start Menu Grid */}
+        <View style={styles.quickStartContainer}>
           <View style={styles.menuRow}>
             <MenuItem
               icon="megaphone"
@@ -206,8 +314,49 @@ export default function HomeScreen() {
               icon="grid"
               label="Semua"
               color="#64748B"
+              onPress={() => navigation.jumpTo('Layanan')}
             />
           </View>
+        </View>
+
+        {/* Layanan Section Header */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionHeaderTitle, { marginHorizontal: 0, marginBottom: 0 }]}>
+            Layanan Unggulan
+          </Text>
+          <TouchableOpacity onPress={() => navigation.jumpTo('Layanan')}>
+            <Text style={styles.seeAllText}>Lihat Semua</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Featured Services - Horizontal Scroll */}
+        <View style={styles.featuredGridContainer}>
+          {isLoadingFeatured ? (
+            <View style={{ height: 100, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator color="#FFC107" />
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 16, paddingRight: 20 }}
+            >
+              {Array.isArray(featuredServices) && featuredServices.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.featuredServiceCard}
+                  onPress={() => navigation.navigate("ServiceDetail", { service: item })}
+                >
+                  <View style={styles.featuredServiceIconContainer}>
+                    <Icon name={getServiceIcon(item.nama_layanan || item.nama, item.kategori?.nama)} size={28} color="#FFC107" />
+                  </View>
+                  <Text style={styles.featuredServiceName} numberOfLines={2}>
+                    {item.nama_layanan || item.nama}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         {/* Info/Widgets - Replicating 'Lencana/JakOne' style roughly */}
@@ -340,7 +489,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
-    opacity: 0.3,
   },
   headerOverlay: {
     flex: 1,
@@ -353,20 +501,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: Platform.OS === 'android' ? 10 : 0,
-  },
-  logoBox: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#FFC107',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#000000',
-    lineHeight: 12,
   },
   notifButton: {
     width: 40,
@@ -386,28 +520,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#EF4444',
     borderWidth: 1,
     borderColor: '#FFFFFF',
-  },
-  headerGreeting: {
-    marginBottom: 10,
-  },
-  greetingTitle: {
-    fontSize: 28,
-    color: '#0F172A',
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  greetingSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    fontWeight: '700',
-    letterSpacing: 2,
-    marginBottom: 8,
-  },
-  greetingDesc: {
-    fontSize: 12,
-    color: '#334155',
-    maxWidth: '80%',
-    lineHeight: 18,
   },
 
   // Floating Search
@@ -432,11 +544,101 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0F172A',
   },
+  searchResultsContainer: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 16,
+    padding: 8,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    zIndex: 100,
+    position: 'absolute',
+    top: 25,
+    left: 0,
+    right: 0,
+    maxHeight: 400,
+  },
+  noResultItem: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noResultText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+    marginTop: 12,
+  },
+  noResultSub: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  searchResultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  searchResultIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    marginRight: 12,
+    backgroundColor: '#F8FAFC',
+  },
+  searchResultName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  searchResultCategory: {
+    fontSize: 12,
+    color: '#64748B',
+  },
 
-  // Menu Grid
-  menuGridContainer: {
+  // Menu Grids
+  quickStartContainer: {
     padding: 20,
     marginTop: 8,
+  },
+  featuredGridContainer: {
+    paddingLeft: 20,
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  featuredServiceCard: {
+    width: 80,
+    alignItems: 'center',
+  },
+  featuredServiceIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  featuredServiceIcon: {
+    width: 32,
+    height: 32,
+    resizeMode: 'contain',
+  },
+  featuredServiceName: {
+    fontSize: 11,
+    textAlign: 'center',
+    color: '#334155',
+    fontWeight: '600',
+    lineHeight: 14,
   },
   menuRow: {
     flexDirection: 'row',
@@ -524,6 +726,19 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     marginHorizontal: 20,
     marginBottom: 12,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginBottom: 12,
+    marginTop: 16,
+  },
+  seeAllText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFC107',
   },
   bannerContainer: {
     paddingLeft: 20, // Align with margins

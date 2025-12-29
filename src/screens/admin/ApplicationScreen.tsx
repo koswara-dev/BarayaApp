@@ -23,6 +23,10 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import useToastStore from '../../stores/toastStore';
 
+import { PermissionGuard } from '../../components/PermissionGuard';
+import { usePermissions } from '../../hooks/usePermissions';
+import { Role } from '../../types/auth';
+
 const { width } = Dimensions.get('window');
 
 // Enable LayoutAnimation for Android
@@ -30,27 +34,36 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
     UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
+interface MenuItem {
+    label: string;
+    icon: string;
+    type: string;
+    route?: keyof RootStackParamList;
+    permission?: string;
+    allowedRoles?: Role[];
+}
+
 // Define the menu structure based on the image
-const PUBLIC_SERVICES = [
-    { label: 'List\nPengaduan', icon: 'message-alert-outline', type: 'mci', route: 'AdminPengaduanList' }, // complaint list
-    // { label: 'List\nLayanan', icon: 'room-service-outline', type: 'mci', route: 'ServiceHistory' }, // service list
+const PUBLIC_SERVICES: MenuItem[] = [
+    { label: 'List\nPengaduan', icon: 'message-alert-outline', type: 'mci', route: 'AdminPengaduanList', allowedRoles: [Role.SUPERADMIN, Role.ADMIN, Role.STAFF] },
     { label: 'List\nLayanan', icon: 'room-service-outline', type: 'mci' }, // service list
-    { label: 'Rekap\nPengaduan', icon: 'chart-box-outline', type: 'mci' }, // recap complaint
-    { label: 'Rekap\nLayanan', icon: 'chart-bar', type: 'mci' }, // recap service
-    { label: 'List\nEvent', icon: 'calendar-month-outline', type: 'mci', route: 'EventList' }, // event list
-    { label: 'Buat\nEvent', icon: 'calendar-plus', type: 'mci', route: 'CreateEvent' }, // create event
+    { label: 'Rekap\nPengaduan', icon: 'chart-box-outline', type: 'mci', allowedRoles: [Role.SUPERADMIN, Role.ADMIN] },
+    { label: 'Rekap\nLayanan', icon: 'chart-bar', type: 'mci', allowedRoles: [Role.SUPERADMIN, Role.ADMIN] },
+    { label: 'List\nEvent', icon: 'calendar-month-outline', type: 'mci', route: 'EventList' },
+    { label: 'Buat\nEvent', icon: 'calendar-plus', type: 'mci', route: 'CreateEvent', allowedRoles: [Role.SUPERADMIN, Role.ADMIN] },
 ];
 
-const INTERNAL_MANAGEMENT = [
-    { label: 'List\nDinas', icon: 'office-building-outline', type: 'mci', route: 'DinasList' }, // dinas list
-    { label: 'Buat\nDinas', icon: 'office-building-plus-outline', type: 'mci', route: 'CreateDinas' }, // create dinas
-    { label: 'Buat\nLayanan', icon: 'room-service-outline', type: 'mci', route: 'CreateLayanan' }, // create layanan
-    { label: 'Pengaturan', icon: 'cog-outline', type: 'mci', route: 'Pengaturan' }, // settings
+const INTERNAL_MANAGEMENT: MenuItem[] = [
+    { label: 'List\nDinas', icon: 'office-building-outline', type: 'mci', route: 'DinasList' },
+    { label: 'Buat\nDinas', icon: 'office-building-plus-outline', type: 'mci', route: 'CreateDinas', allowedRoles: [Role.SUPERADMIN] },
+    { label: 'Buat\nLayanan', icon: 'room-service-outline', type: 'mci', route: 'CreateLayanan', allowedRoles: [Role.SUPERADMIN, Role.ADMIN] },
+    { label: 'Pengaturan', icon: 'cog-outline', type: 'mci', route: 'Pengaturan', allowedRoles: [Role.SUPERADMIN] },
 ];
 
 export default function ApplicationScreen() {
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const showToast = useToastStore((state) => state.showToast);
+    const { hasRole, role } = usePermissions();
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const switchAnim = useRef(new Animated.Value(0)).current;
 
@@ -75,7 +88,7 @@ export default function ApplicationScreen() {
         outputRange: [0, 24] // Moving 24px to the right
     });
 
-    const handleMenuPress = (item: { label: string; route?: keyof RootStackParamList }) => {
+    const handleMenuPress = (item: MenuItem) => {
         if (item.route) {
             navigation.navigate(item.route as any);
         } else {
@@ -83,7 +96,16 @@ export default function ApplicationScreen() {
         }
     };
 
-    const renderMenuItem = (item: any, index: number) => {
+    const filterMenu = (menuItems: MenuItem[]) => {
+        return menuItems.filter(item => {
+            if (item.allowedRoles) {
+                return item.allowedRoles.includes(role as Role);
+            }
+            return true;
+        });
+    };
+
+    const renderMenuItem = (item: MenuItem, index: number) => {
         // Icon color logic - Yellow theme
         const iconColor = '#F59E0B'; // Amber 500
         const bgColor = '#FFFBEB'; // Amber 50
@@ -120,6 +142,9 @@ export default function ApplicationScreen() {
         );
     };
 
+    const filteredPublicServices = filterMenu(PUBLIC_SERVICES);
+    const filteredInternalManagement = filterMenu(INTERNAL_MANAGEMENT);
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar backgroundColor="#FFFFFF" barStyle="dark-content" />
@@ -147,16 +172,24 @@ export default function ApplicationScreen() {
                 <View style={styles.contentPadding}>
 
                     {/* Public Services Section */}
-                    <Text style={styles.sectionTitle}>Layanan Publik</Text>
-                    <View style={viewMode === 'grid' ? styles.gridContainer : styles.listContainer}>
-                        {PUBLIC_SERVICES.map((item, index) => renderMenuItem(item, index))}
-                    </View>
+                    {filteredPublicServices.length > 0 && (
+                        <>
+                            <Text style={styles.sectionTitle}>Layanan Publik</Text>
+                            <View style={viewMode === 'grid' ? styles.gridContainer : styles.listContainer}>
+                                {filteredPublicServices.map((item, index) => renderMenuItem(item, index))}
+                            </View>
+                        </>
+                    )}
 
                     {/* Internal Management Section */}
-                    <Text style={styles.sectionTitle}>Manajemen Internal</Text>
-                    <View style={viewMode === 'grid' ? styles.gridContainer : styles.listContainer}>
-                        {INTERNAL_MANAGEMENT.map((item, index) => renderMenuItem(item, index))}
-                    </View>
+                    {filteredInternalManagement.length > 0 && (
+                        <>
+                            <Text style={styles.sectionTitle}>Manajemen Internal</Text>
+                            <View style={viewMode === 'grid' ? styles.gridContainer : styles.listContainer}>
+                                {filteredInternalManagement.map((item, index) => renderMenuItem(item, index))}
+                            </View>
+                        </>
+                    )}
 
                 </View>
                 <View style={{ height: 100 }} />

@@ -4,13 +4,16 @@ import { Service } from "../types/service";
 
 interface LayananStore {
     layanan: Service[];
+    searchResults: Service[];
     dinas: any[];
     loading: boolean;
+    isSearching: boolean;
     error: string | null;
     page: number;
     totalPages: number;
     hasMore: boolean;
     fetchLayanan: (params?: { name?: string; page?: number; size?: number, isLoadMore?: boolean }) => Promise<void>;
+    searchLayanan: (query: string) => Promise<void>;
     fetchDinas: () => Promise<void>;
     createLayanan: (data: any) => Promise<any>;
     createDinas: (data: any) => Promise<any>;
@@ -18,8 +21,10 @@ interface LayananStore {
 
 const useLayananStore = create<LayananStore>((set, get) => ({
     layanan: [],
+    searchResults: [],
     dinas: [],
     loading: false,
+    isSearching: false,
     error: null,
     page: 0,
     totalPages: 1,
@@ -62,6 +67,25 @@ const useLayananStore = create<LayananStore>((set, get) => ({
             set({
                 loading: false,
                 error: err?.response?.data?.message || err.message,
+            });
+        }
+    },
+    searchLayanan: async (query: string) => {
+        if (!query.trim()) {
+            set({ searchResults: [], isSearching: false });
+            return;
+        }
+
+        set({ isSearching: true });
+        try {
+            const response = await api.get("/layanan", { params: { nama: query, size: 20 } });
+            const data = response.data?.data;
+            set({ searchResults: data?.content || [], isSearching: false });
+        } catch (err: any) {
+            set({
+                isSearching: false,
+                error: err?.response?.data?.message || err.message,
+                searchResults: []
             });
         }
     },

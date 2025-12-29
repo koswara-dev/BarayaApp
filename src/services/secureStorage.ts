@@ -1,6 +1,6 @@
 import * as Keychain from 'react-native-keychain';
 
-const TOKEN_SERVICE = 'com.barayaapp.auth';
+const TOKEN_SERVICE = 'go.id.kuningankab.smartservice.auth';
 
 /**
  * Secure storage service using react-native-keychain

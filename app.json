@@ -1,6 +1,6 @@
 {
   "name": "BarayaApp",
-  "displayName": "BarayaApp",
+  "displayName": "Baraya Kuningan",
   "android": {
     "permissions": [
       "ACCESS_COARSE_LOCATION",

@@ -1,14 +1,23 @@
 // Auth Types for the application
 
-export type UserRole = 'ADMIN' | 'STAFF' | 'USER' | string;
+export enum Role {
+    SUPERADMIN = 'SUPERADMIN',
+    ADMIN = 'ADMIN',
+    STAFF = 'STAFF',
+    USER = 'USER',
+}
+
+export type UserRole = Role | string;
 
 export interface User {
     id: string;
-    email?: string; // Made optional as it's not in the new token structure
+    email?: string;
     username?: string;
     fullName: string;
     role: UserRole;
+    dinasId?: string; // Added to support role-based scoping (e.g. ADMIN of a specific dinas)
 }
+
 
 export interface AuthState {
     user: User | null;

@@ -107,13 +107,17 @@ export default function LoginScreen({ navigation }: any) {
                 {/* Logo Section */}
                 <View style={styles.logoWrapper}>
                     <View style={styles.logoBox}>
-                        <Icon name="log-in" size={32} color="#FFB800" />
+                        <Image
+                            source={require('../assets/baraya.png')}
+                            style={{ width: 50, height: 50 }}
+                            resizeMode="contain"
+                        />
                     </View>
                 </View>
 
                 <Text style={styles.title}>Masuk Akun</Text>
                 <Text style={styles.subtitle}>
-                    Silakan masuk untuk melanjutkan akses ke layanan Kuningan Melesat.
+                    Silakan masuk untuk melanjutkan akses ke layanan Smart Service Kuningan.
                 </Text>
 
                 {/* Form */}
@@ -176,7 +180,7 @@ export default function LoginScreen({ navigation }: any) {
                         onPress={() => showToast("Fitur Google Sign-In akan segera hadir", "info")}
                     >
                         <Image
-                            source={{ uri: 'https://w7.pngwing.com/pngs/71/673/png-transparent-google-g-logo-google-search-google-account-google-s-google-pay-google-g-logo-google-logo-google-thumbnail.png' }}
+                            source={{ uri: 'https://img.icons8.com/?size=100&id=17949&format=png&color=000000' }}
                             style={styles.googleIcon}
                             resizeMode="contain"
                         />
@@ -200,7 +204,7 @@ export default function LoginScreen({ navigation }: any) {
 
             <CustomAlert
                 visible={showAlert}
-                message="Akses masuk berhasil diverifikasi. Selamat datang kembali di Kuningan Melesat."
+                message="Akses masuk berhasil diverifikasi. Selamat datang kembali di Smart Service Kuningan."
                 onClose={() => {
                     setShowAlert(false);
                     if (tempToken) {

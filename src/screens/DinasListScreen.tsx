@@ -38,6 +38,9 @@ const DinasCardSkeleton = () => (
     </View>
 );
 
+import { PermissionGuard } from '../components/PermissionGuard';
+import { Role } from '../types/auth';
+
 export default function DinasListScreen() {
     const navigation = useNavigation<any>();
     const { dinas, loading, fetchDinas } = useLayananStore();
@@ -70,7 +73,13 @@ export default function DinasListScreen() {
                     <Icon name="arrow-back" size={24} color="#0F172A" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Daftar Dinas</Text>
-                <View style={styles.headerBtn} />
+                <View style={styles.headerBtn}>
+                    <PermissionGuard allowedRoles={[Role.SUPERADMIN]}>
+                        <TouchableOpacity onPress={() => navigation.navigate('CreateDinas')}>
+                            <Icon name="add-circle" size={28} color="#F59E0B" />
+                        </TouchableOpacity>
+                    </PermissionGuard>
+                </View>
             </View>
 
             <ScrollView

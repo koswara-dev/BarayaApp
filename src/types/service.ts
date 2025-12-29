@@ -1,12 +1,19 @@
 export interface Service {
     id: number;
     nama: string;
+    nama_layanan?: string; // Some API responses might use this
+    ikon?: string;         // Some API responses might use this
+    urlGambar?: string;    // Some API responses might use this
     deskripsi: string;
     estimasiWaktu: number;
     phoneNumber: string;
     email: string;
     dinasId: number;
     dinasNama: string;
+    kategori?: {
+        id: number;
+        nama: string;
+    };
     createdAt: string;
     updatedAt: string;
 }

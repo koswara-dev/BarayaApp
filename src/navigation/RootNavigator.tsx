@@ -35,6 +35,7 @@ import { RootStackParamList } from './types';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 import { navigationRef } from './navigationRef';
+import { Role } from '../types/auth';
 import useAuthStore from '../stores/authStore';
 
 export default function RootNavigator() {
@@ -45,35 +46,44 @@ export default function RootNavigator() {
     return <SplashScreen />;
   }
 
+  const isUser = user?.role === Role.USER;
+  const isSuperAdmin = user?.role === Role.SUPERADMIN;
+  const isAdminOrStaff = user?.role === Role.ADMIN || user?.role === Role.STAFF;
+
   return (
     <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {token ? (
           // Authenticated Stack
           <>
-            {user?.role === 'USER' ? (
+            {isUser ? (
               <Stack.Screen name="Main" component={BottomTabNavigator} />
             ) : (
               <Stack.Screen name="AdminMain" component={AdminBottomTabNavigator} />
             )}
+
+            {/* Common Authenticated Screens */}
             <Stack.Screen name="ServiceDetail" component={ServiceDetailScreen} />
             <Stack.Screen name="Notifikasi" component={NotificationScreen} />
             <Stack.Screen name="MapEmergency" component={MapEmergencyScreen} />
             <Stack.Screen name="Berita" component={NewsScreen} />
-            <Stack.Screen name="Pengaturan" component={PengaturanScreen} />
             <Stack.Screen name="EventList" component={EventListScreen} />
             <Stack.Screen name="DinasList" component={DinasListScreen} />
-            <Stack.Screen name="CreateEvent" component={CreateEventScreen} />
-            <Stack.Screen name="CreateDinas" component={CreateDinasScreen} />
-            <Stack.Screen name="CreateLayanan" component={CreateLayananScreen} />
             <Stack.Screen name="CreatePengaduan" component={CreatePengaduanScreen} />
             <Stack.Screen name="PengaduanList" component={PengaduanListScreen} />
             <Stack.Screen name="PengaduanDetail" component={PengaduanDetailScreen} />
+            <Stack.Screen name="ServiceHistory" component={ServiceHistoryScreen} />
+
+            {/* Admin/Staff Specific Screens (Guarded by component-level perms usually, but can be routed here) */}
+            <Stack.Screen name="Pengaturan" component={PengaturanScreen} />
+            <Stack.Screen name="CreateEvent" component={CreateEventScreen} />
+            <Stack.Screen name="CreateDinas" component={CreateDinasScreen} />
+            <Stack.Screen name="CreateLayanan" component={CreateLayananScreen} />
             <Stack.Screen name="AdminPengaduanList" component={AdminPengaduanListScreen} />
             <Stack.Screen name="AdminPengaduanDetail" component={AdminPengaduanDetailScreen} />
-            <Stack.Screen name="ServiceHistory" component={ServiceHistoryScreen} />
           </>
         ) : (
+
           // Unauthenticated Stack - ONLY shows if token is null
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />

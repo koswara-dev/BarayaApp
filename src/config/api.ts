@@ -3,8 +3,8 @@ import useAuthStore from "../stores/authStore";
 import useToastStore from "../stores/toastStore";
 import { reset } from "../navigation/navigationRef";
 
-export const API_BASE_URL = "http://103.197.191.113:8080/api/v1";
-export const UPLOADS_BASE_URL = "http://103.197.191.113:8080/uploads/";
+export const API_BASE_URL = "https://api-baraya.devsecops.my.id/api/v1";
+export const UPLOADS_BASE_URL = "https://api-baraya.devsecops.my.id/uploads/";
 
 /**
  * Helper function to get full image URL from relative path

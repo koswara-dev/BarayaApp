@@ -32,11 +32,11 @@ export default function WelcomeScreen({ navigation }: any) {
                     <View style={styles.logoMainBox}>
                         <View style={styles.logoInnerContent}>
                             <Image
-                                source={{ uri: 'https://kuningankab.go.id/id/wp-content/uploads/2021/04/LOGO-KUNINGAN-300x300.png' }}
+                                source={require('../assets/baraya.png')}
                                 style={styles.logoImage}
                                 resizeMode="contain"
                             />
-                            <Text style={styles.logoText}>I KUNINGAN</Text>
+                            <Text style={styles.logoText}>SMART SERVICE</Text>
                             <Text style={styles.logoTagline}>LAYANAN JADI MUDAH</Text>
                         </View>
                     </View>
@@ -45,8 +45,8 @@ export default function WelcomeScreen({ navigation }: any) {
                 {/* Title Section */}
                 <View style={styles.titleSection}>
                     <Text style={styles.welcomeText}>SELAMAT DATANG DI</Text>
-                    <Text style={styles.brandPrimary}>Kuningan</Text>
-                    <Text style={styles.brandSecondary}>Melesat</Text>
+                    <Text style={styles.brandPrimary}>Smart Service</Text>
+                    <Text style={styles.brandSecondary}>Kuningan</Text>
                 </View>
 
                 {/* Divider */}

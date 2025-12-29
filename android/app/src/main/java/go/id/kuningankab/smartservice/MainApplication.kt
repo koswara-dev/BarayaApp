@@ -1,4 +1,4 @@
-package com.barayaapp
+package go.id.kuningankab.smartservice
 
 import android.app.Application
 import com.facebook.react.PackageList

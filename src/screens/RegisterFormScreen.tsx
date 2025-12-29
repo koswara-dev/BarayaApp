@@ -164,7 +164,7 @@ export default function RegisterFormScreen({ navigation, route }: any) {
             <CustomAlert
                 visible={showAlert}
                 title="Pendaftaran Berhasil"
-                message="Selamat! Akun Anda telah berhasil dibuat. Silakan masuk untuk mulai menggunakan layanan Kuningan Melesat."
+                message="Selamat! Akun Anda telah berhasil dibuat. Silakan masuk untuk mulai menggunakan layanan Baraya Kuningan."
                 onClose={() => {
                     setShowAlert(false);
                     navigation.reset({

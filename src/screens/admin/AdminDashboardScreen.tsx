@@ -23,6 +23,8 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import useAuthStore from '../../stores/authStore';
+import { Role } from '../../types/auth';
+
 import useUserStore from '../../stores/userStore';
 
 const { width } = Dimensions.get('window');
@@ -110,11 +112,19 @@ export default function AdminDashboardScreen() {
     ];
 
     const modules = [
-        { label: 'Verifikasi Layanan', icon: 'file-tray-full', color: '#334155' },
-        { label: 'Kelola Pengaduan', icon: 'people-circle', color: '#334155' },
-        { label: 'Laporan Kinerja', icon: 'stats-chart', color: '#334155' },
-        { label: 'Pengaturan Sistem', icon: 'settings', color: '#334155' },
+        { label: 'Verifikasi Layanan', icon: 'file-tray-full', color: '#334155', allowedRoles: [Role.SUPERADMIN, Role.ADMIN, Role.STAFF] },
+        { label: 'Kelola Pengaduan', icon: 'people-circle', color: '#334155', allowedRoles: [Role.SUPERADMIN, Role.ADMIN, Role.STAFF] },
+        { label: 'Laporan Kinerja', icon: 'stats-chart', color: '#334155', allowedRoles: [Role.SUPERADMIN, Role.ADMIN] },
+        { label: 'Pengaturan Sistem', icon: 'settings', color: '#334155', allowedRoles: [Role.SUPERADMIN] },
     ];
+
+    const filteredModules = modules.filter(mod => {
+        if (mod.allowedRoles) {
+            return mod.allowedRoles.includes(user?.role as Role);
+        }
+        return true;
+    });
+
 
     const tasks = [
         {
@@ -514,7 +524,7 @@ export default function AdminDashboardScreen() {
                 </View>
 
                 <View style={styles.modulesGrid}>
-                    {modules.map((mod, idx) => (
+                    {filteredModules.map((mod, idx) => (
                         <TouchableOpacity key={idx} style={styles.moduleItem}>
                             <View style={styles.moduleIconBox}>
                                 <Icon name={mod.icon} size={24} color="#334155" />

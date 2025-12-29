@@ -142,7 +142,7 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
             <CustomAlert
                 visible={showAlert}
                 title="Verifikasi Berhasil"
-                message="Selamat! Akun Anda telah berhasil diaktifkan. Silakan masuk untuk mulai menggunakan layanan Kuningan Melesat."
+                message="Selamat! Akun Anda telah berhasil diaktifkan. Silakan masuk untuk mulai menggunakan layanan Baraya Kuningan."
                 onClose={() => {
                     setShowAlert(false);
                     navigation.reset({
