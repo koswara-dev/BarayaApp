@@ -139,7 +139,10 @@ export default function NotificationScreen({ navigation }: any) {
     ];
 
     const renderItem = ({ item }: { item: any }) => (
-        <TouchableOpacity style={[styles.itemContainer, item.unread && styles.itemUnread]}>
+        <TouchableOpacity
+            style={[styles.itemContainer, item.unread && styles.itemUnread]}
+            onPress={() => navigation.navigate('NotificationDetail', { id: item.id })}
+        >
             <View style={styles.iconBox}>
                 <Icon name={item.icon} size={24} color={item.iconColor} />
                 {item.unread && <View style={styles.unreadDotIcon} />}

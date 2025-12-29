@@ -10,6 +10,7 @@ interface NotificationState {
     lastNotifiedAt: string | null;
     notifiedIds: string[]; // Track triggered IDs to prevent duplicates
     fetchNotifications: (silent?: boolean) => Promise<void>;
+    getNotificationById: (id: string) => Promise<any>;
     sendNotification: (data: any, retries?: number) => Promise<boolean>;
     startPolling: () => void;
     stopPolling: () => void;
@@ -89,6 +90,19 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
             set({ notifications: notificationMock });
         } finally {
             if (!silent) set({ loading: false });
+        }
+    },
+
+    getNotificationById: async (id: string) => {
+        set({ loading: true });
+        try {
+            const response = await api.get(`/notifikasi/${id}`);
+            set({ loading: false });
+            return response.data;
+        } catch (error) {
+            console.log('Get notification detail failed:', error);
+            set({ loading: false });
+            return null;
         }
     },
 

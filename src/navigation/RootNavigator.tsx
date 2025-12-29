@@ -12,6 +12,7 @@ import NotificationScreen from '../screens/NotificationScreen';
 import MapEmergencyScreen from '../screens/MapEmergencyScreen';
 import ProfileDetailScreen from '../screens/ProfileDetailScreen';
 import NewsScreen from '../screens/NewsScreen';
+import NotificationDetailScreen from '../screens/NotificationDetailScreen';
 
 import RegisterScreen from '../screens/RegisterScreen';
 import OtpVerificationScreen from '../screens/OtpVerificationScreen';
@@ -65,6 +66,7 @@ export default function RootNavigator() {
             {/* Common Authenticated Screens */}
             <Stack.Screen name="ServiceDetail" component={ServiceDetailScreen} />
             <Stack.Screen name="Notifikasi" component={NotificationScreen} />
+            <Stack.Screen name="NotificationDetail" component={NotificationDetailScreen} />
             <Stack.Screen name="MapEmergency" component={MapEmergencyScreen} />
             <Stack.Screen name="Berita" component={NewsScreen} />
             <Stack.Screen name="EventList" component={EventListScreen} />

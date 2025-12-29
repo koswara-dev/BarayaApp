@@ -95,8 +95,14 @@ export default function CreateLayananScreen() {
                 dinasId: form.dinasId,
             });
 
-            // Removed manual notification trigger (backend handles it)
-
+            // Broadcast notification to all users
+            await sendNotification({
+                judul: `Layanan Baru: ${form.nama}`,
+                pesan: `Layanan ${form.nama} kini tersedia di ${form.dinasNama}. Lihat persyaratannya sekarang.`,
+                category: 'LAYANAN',
+                layananId: result.id,
+                target: 'all'
+            });
 
             showToast('Layanan berhasil dibuat', 'success');
             navigation.goBack();

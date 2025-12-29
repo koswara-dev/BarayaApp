@@ -9,6 +9,7 @@ export type RootStackParamList = {
     AdminMain: undefined;
     ServiceDetail: { service: any };
     Notifikasi: undefined;
+    NotificationDetail: { id: string };
     MapEmergency: { onLocationSelect: (loc: any) => void };
     ProfileDetail: undefined;
     OtpVerification: { email: string };

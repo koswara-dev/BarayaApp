@@ -16,6 +16,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import useLayananStore from '../../stores/layananStore';
 import useToastStore from '../../stores/toastStore';
+import useNotificationStore from '../../stores/notificationStore';
 import LoadingOverlay from '../../components/LoadingOverlay';
 import IndustrialFormSection from '../../components/Form/IndustrialFormSection';
 import IndustrialInput from '../../components/Form/IndustrialInput';
@@ -23,6 +24,7 @@ import IndustrialInput from '../../components/Form/IndustrialInput';
 export default function CreateDinasScreen() {
     const navigation = useNavigation<any>();
     const { createDinas, loading } = useLayananStore();
+    const { sendNotification } = useNotificationStore();
     const showToast = useToastStore((state) => state.showToast);
 
     const [form, setForm] = useState({
@@ -63,11 +65,21 @@ export default function CreateDinasScreen() {
     const confirmSubmit = async () => {
         setConfirmModalVisible(false);
         try {
-            await createDinas({
+            const result = await createDinas({
                 ...form,
                 latitude: form.latitude ? parseFloat(form.latitude) : null,
                 longitude: form.longitude ? parseFloat(form.longitude) : null,
             });
+
+            // Broadcast notification
+            await sendNotification({
+                judul: `Info Dinas: ${form.nama}`,
+                pesan: `Informasi mengenai ${form.nama} kini telah diperbarui. Simak profil lengkapnya.`,
+                category: 'DINAS',
+                dinasId: result.id,
+                target: 'all'
+            });
+
             showToast('Dinas berhasil dibuat', 'success');
             navigation.goBack();
         } catch (err: any) {

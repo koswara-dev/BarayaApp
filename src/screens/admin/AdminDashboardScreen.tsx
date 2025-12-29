@@ -44,7 +44,7 @@ interface StatsResponse {
         top5LayananFeedback: any[];
         top5LayananLeastFeedback: any[];
         feedbackPerStatus: { status: string; count: number }[];
-        notifikasiPerStatus: { status: string; count: number }[];
+        daruratPerStatus: { status: string; count: number }[];
         userRegistrationHistory: any[];
     };
 }
@@ -105,7 +105,7 @@ export default function AdminDashboardScreen() {
         {
             label: 'DARURAT',
             count: statsData?.totalNotifikasiDarurat || 0,
-            badge: (statsData?.notifikasiPerStatus || []).find((s: any) => s.status === 'pending')?.count ? `${(statsData?.notifikasiPerStatus || []).find((s: any) => s.status === 'pending')?.count} New` : '--',
+            badge: (statsData?.daruratPerStatus || []).find((s: any) => s.status === 'pending')?.count ? `${(statsData?.daruratPerStatus || []).find((s: any) => s.status === 'pending')?.count} New` : '--',
             color: '#EF4444',
             icon: 'alert-circle'
         },
@@ -384,7 +384,7 @@ export default function AdminDashboardScreen() {
                                     chartDescription={{ text: '' }}
                                     data={{
                                         dataSets: [{
-                                            values: (statsData.notifikasiPerStatus || []).map(s => ({ value: Number(s.count || 0), label: s.status })),
+                                            values: (statsData.daruratPerStatus || []).map(s => ({ value: Number(s.count || 0), label: s.status })),
                                             label: '',
                                             config: {
                                                 colors: [processColor('#EF4444'), processColor('#3B82F6'), processColor('#10B981')],

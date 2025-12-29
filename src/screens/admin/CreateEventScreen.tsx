@@ -152,8 +152,15 @@ export default function CreateEventScreen() {
             });
 
             // Since createEvent now throws on error, if we reach here it was successful
-            // Removed manual notification trigger (backend handles it)
 
+            // Broadcast notification to all users
+            await sendNotification({
+                judul: `Agenda Baru: ${form.judul}`,
+                pesan: `Hadirilah ${form.judul} di ${form.lokasi}. Cek detailnya sekarang!`,
+                category: 'EVENT',
+                eventId: newEvent.id,
+                target: 'all' // Hint for backend broadcasting
+            });
 
             showToast('Event berhasil dibuat', 'success');
             navigation.goBack();
