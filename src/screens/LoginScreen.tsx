@@ -3,9 +3,10 @@ import {
     View,
     Text,
     StyleSheet,
-    ActivityIndicator,
+    Image,
 } from "react-native";
 
+import logo from "../assets/logo.jpg";
 import InputField from "../components/InputField";
 import PrimaryButton from "../components/PrimaryButton";
 import useToastStore from "../stores/toastStore";
@@ -15,8 +16,8 @@ export default function LoginScreen({ navigation }: any) {
     const { login } = useAuthActions();
     const showToast = useToastStore((state) => state.showToast);
 
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+    const [email, setEmail] = useState("admin.disdikbud@kuningankab.go.id");
+    const [password, setPassword] = useState("adminpass");
     const [showPass, setShowPass] = useState(false);
     const [loading, setLoading] = useState(false);
 
@@ -48,13 +49,14 @@ export default function LoginScreen({ navigation }: any) {
     return (
         <View style={styles.container}>
             <View style={styles.iconCircle}>
-                {/* <Icon name="shield-checkmark" size={40} color="#2563EB" /> */}
+                <Image
+                    source={logo}
+                    style={styles.logo}
+                />
             </View>
 
-            <Text style={styles.title}>Hallo!,</Text>
-            <Text style={styles.subtitle}>
-                selamat datang kembali...
-            </Text>
+            <Text style={styles.title}>Pelayanan Publik</Text>
+            <Text style={styles.subtitle}>Kuningan Melesat</Text>
 
             <InputField
                 label="Email"
@@ -94,26 +96,35 @@ const styles = StyleSheet.create({
     },
     iconCircle: {
         alignSelf: "center",
-        width: 90,
-        height: 90,
-        borderRadius: 45,
-        // backgroundColor: "#FFF",
         alignItems: "center",
         justifyContent: "center",
-        marginTop: 80,
-        marginBottom: 20,
-        // elevation: 3,
+        marginTop: 60,
+        marginBottom: 10,
+    },
+    logo: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
     },
     title: {
         fontSize: 26,
         fontWeight: "700",
         textAlign: "center",
         color: "#0F172A",
+        marginTop: 20,
+    },
+    slogan: {
+        fontSize: 16,
+        fontWeight: "600",
+        color: "#64748B",
+        textAlign: "center",
+        marginTop: 8,
+        marginBottom: 20,
     },
     subtitle: {
         fontSize: 14,
         textAlign: "center",
         color: "#64748B",
-        marginVertical: 12,
+        marginBottom: 20,
     },
 });

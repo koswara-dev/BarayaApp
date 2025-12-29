@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import NetInfo from "@react-native-community/netinfo";
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, StatusBar, ActivityIndicator, Alert, Platform, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import useAuthStore from '../stores/authStore';
@@ -112,6 +113,12 @@ export default function EmergencyScreen() {
             return;
         }
 
+        const netState = await NetInfo.fetch();
+        if (!netState.isConnected) {
+            Alert.alert('Tidak Ada Koneksi', 'Pastikan perangkat Anda terhubung ke internet.');
+            return;
+        }
+
         try {
             // 1. Create Report
             const reportPayload = {
@@ -125,6 +132,8 @@ export default function EmergencyScreen() {
                 dinasNama: selectedDinas?.name,
                 foto: photo
             };
+
+            console.log('Sending Report Payload from Screen:', reportPayload);
 
             const result = await createReport(reportPayload);
 

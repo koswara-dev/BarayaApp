@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import useAuthStore from '../stores/authStore';
+import { AuthState } from '../types/auth';
 
 interface HeaderProps {
   onNotificationPress?: () => void;
@@ -9,7 +10,7 @@ interface HeaderProps {
 }
 
 export default function Header({ onNotificationPress, user: propUser }: HeaderProps) {
-  const storeUser = useAuthStore((state) => state.user);
+  const storeUser = useAuthStore((state: AuthState) => state.user);
   const user = propUser || storeUser;
 
   // Simple time-based greeting

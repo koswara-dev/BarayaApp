@@ -1,5 +1,8 @@
 import { create } from 'zustand';
-import api from '../config/api';
+import { Platform } from 'react-native';
+import ReactNativeBlobUtil from 'react-native-blob-util';
+import api, { API_BASE_URL } from '../config/api';
+import useAuthStore from './authStore';
 
 interface EmergencyNotification {
     id: number;
@@ -41,51 +44,71 @@ const useEmergencyStore = create<EmergencyStore>((set, get) => ({
     createReport: async (data: any) => {
         set({ loading: true, error: null });
         try {
-            const formData = new FormData();
-            formData.append('latitude', String(data.latitude));
-            formData.append('longitude', String(data.longitude));
-            formData.append('pesan', data.pesan);
-            formData.append('status', 'pending'); // Default status
+            console.log('Preparing ReactNativeBlobUtil request...');
 
-            if (data.userId) {
-                formData.append('userId', String(data.userId));
-            }
+            const parts: any[] = [
+                { name: 'latitude', data: String(data.latitude) },
+                { name: 'longitude', data: String(data.longitude) },
+                { name: 'pesan', data: data.pesan },
+                { name: 'status', data: 'pending' },
+            ];
 
-            if (data.dinasId) {
-                formData.append('dinasId', String(data.dinasId));
-            }
+            if (data.userId) parts.push({ name: 'userId', data: String(data.userId) });
+            if (data.dinasId) parts.push({ name: 'dinasId', data: String(data.dinasId) });
 
             if (data.foto) {
-                const fileType = data.foto.type || 'image/jpeg';
-                const extension = fileType.includes('png') ? '.png' : '.jpg';
+                const photoAsset = data.foto;
+                let imagePath = photoAsset.uri;
 
-                formData.append('foto', {
-                    uri: data.foto.uri,
-                    type: fileType,
-                    name: data.foto.fileName || `emergency_${Date.now()}${extension}`,
-                } as any);
+                // Clean up URI for wrap
+                if (Platform.OS === 'ios') {
+                    imagePath = imagePath.replace('file://', '');
+                } else {
+                    // Android: usually content:// or file://
+                    // ReactNativeBlobUtil often handles content:// if passed directly or needs real path
+                    // For now, try removing file:// if present
+                    if (imagePath.startsWith('file://')) {
+                         imagePath = imagePath.replace('file://', '');
+                    }
+                }
+
+                console.log('DEBUG: Image Path for Blob:', imagePath);
+
+                parts.push({
+                    name: 'foto',
+                    filename: photoAsset.fileName || `emergency_${Date.now()}.jpg`,
+                    type: photoAsset.type || 'image/jpeg',
+                    data: ReactNativeBlobUtil.wrap(decodeURIComponent(imagePath))
+                });
             }
 
-            const response = await api.post('/notifikasi-darurat', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
+            const token = useAuthStore.getState().token;
+            
+            const response = await ReactNativeBlobUtil.fetch('POST', `${API_BASE_URL}/notifikasi-darurat`, {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data',
+            }, parts);
 
-            set({ loading: false });
-            if (response.data.success) {
-                // Refresh list if needed, but primarily return the new data
-                const newReport = response.data.data;
-                // Optionally add to local list immediately
+            // Parse response
+            // ReactNativeBlobUtil response.data is string or base64 strings usually
+            // .json() is a helper method on the response object
+            const responseJson = await response.json();
+
+            // Check logging
+            console.log('Upload Response status:', response.info().status);
+            // console.log('Upload Response body:', responseJson);
+
+            if (response.info().status >= 200 && response.info().status < 300 && responseJson.success) {
+                const newReport = responseJson.data;
                 const currentReports = get().reports;
-                set({ reports: [newReport, ...currentReports] });
-
+                set({ reports: [newReport, ...currentReports], loading: false });
                 return newReport;
             } else {
-                throw new Error(response.data.message || 'Gagal mengirim laporan');
+                throw new Error(responseJson.message || 'Gagal mengirim laporan');
             }
         } catch (error: any) {
-            set({ loading: false, error: error.message });
+            console.error('Create Report Error:', error.message || error);
+            set({ loading: false, error: error.message || 'Terjadi kesalahan' });
             throw error;
         }
     }

@@ -3,16 +3,16 @@ import useAuthStore from "../stores/authStore";
 import useToastStore from "../stores/toastStore";
 import { reset } from "../navigation/navigationRef";
 
-const API_BASE_URL = "http://103.197.191.113:8080/api/v1";
+export const API_BASE_URL = "http://192.168.252.130:8080/api/v1";
 
 /**
  * Axios instance configured with base URL and default headers
  */
 const api = axios.create({
     baseURL: API_BASE_URL,
-    timeout: 10000,
+    timeout: 15000,
     headers: {
-        "Content-Type": "application/json",
+        Accept: 'application/json',
     },
 });
 
