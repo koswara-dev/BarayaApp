@@ -29,6 +29,7 @@ interface PengaduanState {
     fetchPengaduan: (params?: { page?: number; size?: number; isLoadMore?: boolean }) => Promise<void>;
     createPengaduan: (data: any) => Promise<any>;
     updatePengaduanStatus: (id: number, status: string) => Promise<any>;
+    getPengaduanById: (id: number) => Promise<Pengaduan | null>;
     clearError: () => void;
 }
 
@@ -65,6 +66,26 @@ const usePengaduanStore = create<PengaduanState>((set, get) => ({
             const msg = error.response?.data?.message || error.message || 'Gagal memperbarui status';
             set({ error: msg, loading: false });
             throw new Error(msg);
+        }
+    },
+
+    getPengaduanById: async (id) => {
+        set({ loading: true, error: null });
+        try {
+            const response = await api.get(`/pengaduan/${id}`);
+            if (response.data?.success) {
+                set({ loading: false });
+                return response.data.data;
+            } else {
+                 throw new Error(response.data?.message || "Gagal memuat detail pengaduan");
+            }
+        } catch (error: any) {
+            console.error('Get pengaduan detail error:', error);
+            set({ 
+                loading: false, 
+                error: error.response?.data?.message || error.message || 'Gagal memuat detail pengaduan' 
+            });
+            return null;
         }
     },
 

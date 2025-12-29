@@ -35,15 +35,60 @@ const TimelineStep = ({ title, date, description, isActive, isLast }: any) => (
 export default function AdminPengaduanDetailScreen() {
     const navigation = useNavigation();
     const route = useRoute<any>();
-    const { item } = route.params || {};
+    const { item, id } = route.params || {};
 
-    const { updatePengaduanStatus, loading } = usePengaduanStore();
+    const { updatePengaduanStatus, getPengaduanById, loading } = usePengaduanStore();
     const showToast = useToastStore(state => state.showToast);
+    
+    // Local state for fetched item if passed only ID
+    const [fetchedItem, setFetchedItem] = useState<any>(null);
+    const [isFetching, setIsFetching] = useState(false);
 
-    if (!item) return null;
+    const list = usePengaduanStore(state => state.list);
+    
+    // Find item from list if available
+    const listItem = React.useMemo(() => {
+        if (!id && !item) return null;
+        return list.find(i => String(i.id) === String(item?.id || id));
+    }, [list, item, id]);
 
-    const storeItem = usePengaduanStore(state => state.list.find(i => i.id === item.id));
-    const displayItem = storeItem || item;
+    React.useEffect(() => {
+        const loadData = async () => {
+            if (!item && id && !listItem) {
+                 setIsFetching(true);
+                 try {
+                     const data = await getPengaduanById(id);
+                     if (data) {
+                          setFetchedItem(data);
+                     }
+                 } catch (e) {
+                     console.log('Fetch error', e);
+                 } finally {
+                     setIsFetching(false);
+                 }
+            }
+        };
+        loadData();
+    }, [item, id, listItem]);
+
+    if (isFetching) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center'}]}>
+                <ActivityIndicator size="large" color="#3B82F6" />
+            </View>
+        );
+    }
+
+    const displayItem = fetchedItem || item || listItem;
+
+    if (!displayItem) return (
+         <View style={[styles.container, { justifyContent: 'center', alignItems: 'center'}]}>
+             <Text>Data laporan tidak ditemukan</Text>
+              <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16, padding: 10 }}>
+                 <Text style={{ color: '#3B82F6'}}>Kembali</Text>
+             </TouchableOpacity>
+         </View>
+    );
 
     const isSubmitted = true;
     const isProcessed = ['diproses', 'selesai'].includes(displayItem.status?.toLowerCase());

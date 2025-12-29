@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, StatusBar } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import useNotificationStore from '../stores/notificationStore';
+import useNotificationStore, { NotificationItem } from '../stores/notificationStore';
 
 const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -19,11 +19,11 @@ const formatDateTime = (dateString: string) => {
 
 export default function NotificationDetailScreen() {
     const route = useRoute();
-    const navigation = useNavigation();
+    const navigation = useNavigation<any>();
     const { id } = route.params as { id: string };
     const { getNotificationById } = useNotificationStore();
 
-    const [notification, setNotification] = useState<any>(null);
+    const [notification, setNotification] = useState<NotificationItem | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -102,7 +102,7 @@ export default function NotificationDetailScreen() {
 
                 <Text style={styles.message}>{notification.pesan}</Text>
 
-                {/* Additional Info if available */}
+            {/* Additional Info if available */}
                 {notification.category && (
                     <View style={styles.metaContainer}>
                         <Text style={styles.metaLabel}>Kategori:</Text>
@@ -110,6 +110,34 @@ export default function NotificationDetailScreen() {
                             <Text style={styles.badgeText}>{notification.category}</Text>
                         </View>
                     </View>
+                )}
+
+                {/* Navigation Button based on Category */}
+                {(notification.category === 'PENGADUAN' || notification.category === 'DARURAT' || notification.category === 'EVENT') && (
+                    <TouchableOpacity
+                        style={[styles.actionButton, { marginTop: 32, backgroundColor: iconColor }]}
+                        onPress={() => {
+                            const refId = notification.referenceId;
+                            if (notification.category === 'PENGADUAN' && refId) {
+                                // Check if user is Admin/Staff to direct to Admin Screen
+                                const role = require('../stores/authStore').default.getState().user?.role;
+                                const isAdminOrStaff = role === 'ADMIN' || role === 'STAFF' || role === 'SUPERADMIN';
+                                
+                                if (isAdminOrStaff) {
+                                    navigation.navigate('AdminPengaduanDetail' as never, { id: refId } as never);
+                                } else {
+                                    navigation.navigate('PengaduanDetail' as never, { id: refId } as never);
+                                }
+                            } else if (notification.category === 'DARURAT' && refId) {
+                                navigation.navigate('EmergencyDetail' as never, { report: { id: refId } } as never);
+                            } else if (notification.category === 'EVENT' && refId) {
+                                navigation.navigate('EventDetail' as never, { event: { id: refId } } as never); 
+                            }
+                        }}
+                    >
+                        <Text style={styles.actionButtonText}>Lihat Detail {notification.category === 'PENGADUAN' ? 'Laporan' : notification.category === 'EVENT' ? 'Agenda' : 'Darurat'}</Text>
+                        <Icon name="arrow-forward" size={18} color="#FFF" />
+                    </TouchableOpacity>
                 )}
             </ScrollView>
         </View>
@@ -217,5 +245,19 @@ const styles = StyleSheet.create({
     backButtonText: {
         color: 'white',
         fontWeight: '600',
+    },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 8,
+        gap: 8,
+    },
+    actionButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#FFFFFF',
     }
 });

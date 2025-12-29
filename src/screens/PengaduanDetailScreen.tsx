@@ -33,13 +33,35 @@ const TimelineStep = ({ title, date, description, isActive, isLast }: any) => (
 export default function PengaduanDetailScreen() {
     const navigation = useNavigation();
     const route = useRoute<any>();
-    const { item } = route.params || {};
+    const { item, id } = route.params || {};
 
-    if (!item) return null;
-
-    // Use store item if available for status updates
-    const storeItem = usePengaduanStore(state => state.list.find(i => i.id === item.id));
+    const storeList = usePengaduanStore(state => state.list);
+    
+    // Determine the ID to look up
+    const targetId = item?.id || id;
+    
+    // Try to find in store first
+    const storeItem = storeList.find(i => i.id === targetId);
+    
+    // Use store item if found, otherwise fallback to passed item
     const displayItem = storeItem || item;
+    
+    // If still no item, we might need to fetch (omitted for brevity, expecting store or item)
+    // For now, if no item found, show error or loading.
+    if (!displayItem) {
+         return (
+             <View style={styles.container}>
+                <View style={[styles.header, { justifyContent: 'flex-start' }]}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+                        <Icon name="arrow-back" size={24} color="#0F172A" />
+                    </TouchableOpacity>
+                </View>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                     <Text style={{ color: '#64748B' }}>Data laporan tidak ditemukan.</Text>
+                </View>
+             </View>
+         );
+    }
 
     // Determine timeline based on status
     const isSubmitted = true;

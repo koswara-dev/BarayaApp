@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, SectionList, ActivityIndicator } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
-import useNotificationStore from '../stores/notificationStore';
+import useNotificationStore, { NotificationItem } from '../stores/notificationStore';
 
 const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -52,6 +52,7 @@ export default function NotificationScreen({ navigation }: any) {
 
     useEffect(() => {
         fetchNotifications();
+        // Polling is now handled globally in RootNavigator to ensure push notifications work on all screens
     }, []);
 
     // Group Notifications logic
@@ -66,7 +67,7 @@ export default function NotificationScreen({ navigation }: any) {
 
         const grouped: { [key: string]: any[] } = {};
 
-        sortedNotifications.forEach((item: any) => {
+        sortedNotifications.forEach((item: NotificationItem) => {
             // item.createdAt expected from API, fallback to now if missing
             const dateStr = item.createdAt || new Date().toISOString();
             const sectionKey = getSectionTitle(dateStr);
@@ -113,7 +114,7 @@ export default function NotificationScreen({ navigation }: any) {
                 time: formatTime(dateStr),
                 icon,
                 iconColor,
-                unread: !item.isRead // Assuming API has isRead, or default false
+                unread: !item.read // Assuming API has isRead, or default false
             });
         });
 

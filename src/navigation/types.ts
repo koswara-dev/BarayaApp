@@ -26,9 +26,11 @@ export type RootStackParamList = {
     CreateLayanan: undefined;
     CreatePengaduan: undefined;
     PengaduanList: undefined;
-    PengaduanDetail: { item: any };
+    PengaduanDetail: { item: any; id?: string | number };
     AdminPengaduanList: undefined;
     AdminPengaduanDetail: { item: any };
+    EmergencyDetail: { report: any };
+    EventDetail: { event: any };
 };
 
 export type BottomTabParamList = {

@@ -29,6 +29,8 @@ import CreateDinasScreen from '../screens/admin/CreateDinasScreen';
 import CreateLayananScreen from '../screens/admin/CreateLayananScreen';
 import CreatePengaduanScreen from '../screens/CreatePengaduanScreen';
 import ServiceHistoryScreen from '../screens/ServiceHistoryScreen';
+import EmergencyDetailScreen from '../screens/admin/EmergencyDetailScreen';
+import EventDetailScreen from '../screens/EventDetailScreen';
 
 
 import { RootStackParamList } from './types';
@@ -39,8 +41,28 @@ import { navigationRef } from './navigationRef';
 import { Role } from '../types/auth';
 import useAuthStore from '../stores/authStore';
 
+import useNotificationStore from '../stores/notificationStore';
+
+import { notificationHelper } from '../utils/notificationHelper';
+
 export default function RootNavigator() {
   const { token, user, isHydrated } = useAuthStore();
+  const { startPolling, stopPolling } = useNotificationStore();
+
+  // Global Polling for Push Notifications & Channel Init
+  React.useEffect(() => {
+    notificationHelper.createChannels(); // Ensure channels exist
+    
+    if (token) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+    return () => {
+      // Cleanup on unmount (less likely for Root but good practice)
+      stopPolling();
+    };
+  }, [token]);
 
   // While checking auth status, show the Splash screen content directly
   if (!isHydrated) {
@@ -70,6 +92,7 @@ export default function RootNavigator() {
             <Stack.Screen name="MapEmergency" component={MapEmergencyScreen} />
             <Stack.Screen name="Berita" component={NewsScreen} />
             <Stack.Screen name="EventList" component={EventListScreen} />
+            <Stack.Screen name="EventDetail" component={EventDetailScreen} />
             <Stack.Screen name="DinasList" component={DinasListScreen} />
             <Stack.Screen name="CreatePengaduan" component={CreatePengaduanScreen} />
             <Stack.Screen name="PengaduanList" component={PengaduanListScreen} />
@@ -83,6 +106,7 @@ export default function RootNavigator() {
             <Stack.Screen name="CreateLayanan" component={CreateLayananScreen} />
             <Stack.Screen name="AdminPengaduanList" component={AdminPengaduanListScreen} />
             <Stack.Screen name="AdminPengaduanDetail" component={AdminPengaduanDetailScreen} />
+            <Stack.Screen name="EmergencyDetail" component={EmergencyDetailScreen} />
           </>
         ) : (
 

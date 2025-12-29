@@ -53,6 +53,7 @@ interface EmergencyStore {
     getTrackingSteps: () => TrackingStep[];
     setModalVisible: (visible: boolean, data?: EmergencyReport) => void;
     showModalWithFetch: (eventId: number | string) => Promise<void>;
+    updateReportStatus: (id: number, status: string) => Promise<boolean>;
 }
 
 // Default tracking steps
@@ -219,6 +220,41 @@ const useEmergencyStore = create<EmergencyStore>()(
                     showEmergencyModal: visible,
                     modalData: data || (visible ? get().activeReport : null)
                 });
+            },
+
+            updateReportStatus: async (id, status) => {
+                set({ loading: true, error: null });
+                try {
+                    // Using generic PUT endpoint. If specific endpoint exists (e.g., /status), adjust here.
+                    const response = await api.put(`/darurat`, { id, status });
+                    
+                    if (response.data.success) {
+                        const updatedReport = response.data.data;
+                        
+                        // Update local list
+                        const currentReports = get().reports.map(r => 
+                            r.id === id ? { ...r, status: status as any } : r
+                        );
+                        
+                        // Update active report if matches
+                        const activeReport = get().activeReport;
+                        const updatedActive = activeReport?.id === id ? { ...activeReport, status: status as any } : activeReport;
+
+                        set({ 
+                            reports: currentReports, 
+                            activeReport: updatedActive, 
+                            modalData: updatedReport || (get().modalData?.id === id ? { ...get().modalData, status: status as any } : get().modalData),
+                            loading: false 
+                        });
+                        return true;
+                    } else {
+                        throw new Error(response.data.message || 'Gagal update status');
+                    }
+                } catch (error: any) {
+                    console.log('Update status failed:', error);
+                    set({ loading: false, error: error.message || 'Gagal update status' });
+                    return false;
+                }
             },
 
             showModalWithFetch: async (eventId) => {

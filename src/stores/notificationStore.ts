@@ -4,13 +4,24 @@ import { notificationMock } from '../data/serviceDetailMock';
 import { notificationHelper } from '../utils/notificationHelper';
 import { playEmergencySound, playSuccessSound } from '../utils/soundPlayer';
 
+export interface NotificationItem {
+    id: string;
+    judul: string;
+    pesan: string;
+    category: 'PENGADUAN' | 'DARURAT' | 'EVENT' | string;
+    referenceId: number;
+    createdAt: string;
+    updatedAt: string;
+    read: boolean;
+}
+
 interface NotificationState {
-    notifications: any[];
+    notifications: NotificationItem[];
     loading: boolean;
     lastNotifiedAt: string | null;
     notifiedIds: string[]; // Track triggered IDs to prevent duplicates
     fetchNotifications: (silent?: boolean) => Promise<void>;
-    getNotificationById: (id: string) => Promise<any>;
+    getNotificationById: (id: string) => Promise<NotificationItem | null>;
     sendNotification: (data: any, retries?: number) => Promise<boolean>;
     startPolling: () => void;
     stopPolling: () => void;
@@ -56,10 +67,11 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
                 const { lastNotifiedAt, notifiedIds } = get();
                 const latestTime = latest.createdAt;
 
-                const isNew = lastNotifiedAt !== null && latestTime > lastNotifiedAt;
+                const isNew = lastNotifiedAt === null ? false : (new Date(latestTime) > new Date(lastNotifiedAt));
                 const isAlreadyVisible = latest.id && notifiedIds.includes(String(latest.id));
+                const hasNotified = isAlreadyVisible;
 
-                if (isNew && !isAlreadyVisible) {
+                if ((isNew || !hasNotified) && !isAlreadyVisible) {
                     // Show in status bar
                     notificationHelper.displayNotification(
                         latest.judul || "Notifikasi Baru",
@@ -98,7 +110,7 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
         try {
             const response = await api.get(`/notifikasi/${id}`);
             set({ loading: false });
-            return response.data;
+            return response.data.data;
         } catch (error) {
             console.log('Get notification detail failed:', error);
             set({ loading: false });
