@@ -5,6 +5,7 @@ export type UserRole = 'ADMIN' | 'STAFF' | 'USER';
 export interface User {
     id: string;
     email?: string; // Made optional as it's not in the new token structure
+    username?: string;
     fullName: string;
     role: UserRole;
 }
@@ -29,6 +30,7 @@ export interface LoginCredentials {
 export interface LoginResult {
     success: boolean;
     message?: string;
+    data?: any;
 }
 
 // JWT Payload structure (updated based on user request)
@@ -36,6 +38,8 @@ export interface JWTPayload {
     sub: string;      // user id
     role: UserRole;
     fullName: string;
+    username?: string; // Add username if available
+    email?: string; // Add email if available
     exp: number;      // expiration timestamp
     iat: number;      // issued at timestamp
 }

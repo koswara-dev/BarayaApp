@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, ActivityIndicator, Alert, Platform } from 'react-native';
 import { WebView } from 'react-native-webview';
-import Geolocation from 'react-native-geolocation-service';
+import GetLocation from 'react-native-get-location';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
@@ -45,28 +45,29 @@ export default function MapEmergencyScreen() {
         }
     };
 
-    const getCurrentLocation = () => {
+    const getCurrentLocation = async () => {
         setLoading(true);
-        Geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                const newLoc = { lat: latitude, lng: longitude };
-                setCurrentLocation(newLoc);
-                setSelectedLocation(newLoc);
-                setLoading(false);
+        try {
+            const position = await GetLocation.getCurrentPosition({
+                enableHighAccuracy: true,
+                timeout: 15000,
+            });
 
-                // Center map
-                if (webViewRef.current) {
-                    webViewRef.current.postMessage(JSON.stringify({ type: 'CENTER_MAP', lat: latitude, lng: longitude }));
-                }
-            },
-            (error) => {
-                setLoading(false);
-                Alert.alert('Gagal', 'Tidak dapat mendapatkan lokasi saat ini.');
-                console.log(error.code, error.message);
-            },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-        );
+            const { latitude, longitude } = position;
+            const newLoc = { lat: latitude, lng: longitude };
+            setCurrentLocation(newLoc);
+            setSelectedLocation(newLoc);
+
+            // Center map
+            if (webViewRef.current) {
+                webViewRef.current.postMessage(JSON.stringify({ type: 'CENTER_MAP', lat: latitude, lng: longitude }));
+            }
+        } catch (error: any) {
+            Alert.alert('Gagal', 'Tidak dapat mendapatkan lokasi saat ini: ' + error.message);
+            console.log(error.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleConfirm = () => {

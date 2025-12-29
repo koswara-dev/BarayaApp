@@ -32,10 +32,10 @@ export const useAuthActions = () => {
             // 3. State Update: Use the token to update the Zustand store
             signIn(token);
 
-            return { success: true };
+            return { success: true, data: response.data?.data };
         } catch (error: any) {
             // Log for debugging (using console.log instead of console.error to avoid LogBox popup)
-            console.log("Login failed:", error.response?.data || error.message);
+            // console.log("Login failed:", error.response?.data || error.message);
 
             // Handle different error scenarios
             let message = "Terjadi kesalahan pada server";

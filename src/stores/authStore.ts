@@ -40,6 +40,13 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
             // Store token securely (async, fire and forget)
             SecureStorage.setToken(token).catch(console.error);
+
+            // Fetch user profile from userStore
+            if (user.id) {
+                // Dynamic import to avoid circular dependency
+                const useUserStore = require('./userStore').default;
+                useUserStore.getState().fetchUserProfile(user.id);
+            }
         } catch (error) {
             console.error('Sign in failed:', error);
             set({ user: null, token: null, isLoading: false });
@@ -52,6 +59,10 @@ const useAuthStore = create<AuthState>((set, get) => ({
     signOut: () => {
         set({ user: null, token: null, isLoading: false });
         SecureStorage.removeToken().catch(console.error);
+
+        // Clear user profile from userStore
+        const useUserStore = require('./userStore').default;
+        useUserStore.setState({ profile: null, error: null });
     },
 
     /**
@@ -71,7 +82,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
             // Check if token is expired
             if (isTokenExpired(token)) {
-                console.log('Stored token is expired, clearing...');
+                // console.log('Stored token is expired, clearing...');
                 await SecureStorage.removeToken();
                 set({ user: null, token: null, isLoading: false, isHydrated: true });
                 return;
@@ -80,7 +91,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
             // Extract user from valid token
             const user = extractUserFromToken(token);
             if (!user) {
-                console.error('Failed to extract user from stored token');
+                // console.error('Failed to extract user from stored token');
                 await SecureStorage.removeToken();
                 set({ user: null, token: null, isLoading: false, isHydrated: true });
                 return;
@@ -88,11 +99,18 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
             // Restore session
             set({ user, token, isLoading: false, isHydrated: true });
+
+            // Fetch user profile from userStore
+            if (user.id) {
+                const useUserStore = require('./userStore').default;
+                useUserStore.getState().fetchUserProfile(user.id);
+            }
         } catch (error) {
-            console.error('Failed to check auth:', error);
+            // console.error('Failed to check auth:', error);
             set({ user: null, token: null, isLoading: false, isHydrated: true });
         }
     },
 }));
 
 export default useAuthStore;
+

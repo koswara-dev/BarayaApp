@@ -7,18 +7,33 @@ import useAuthStore from './authStore';
 interface EmergencyNotification {
     id: number;
     userId: number;
+    dinasId?: number;
+    dinasNama?: string;
     fullName: string;
     phoneNumber: string;
     latitude: number;
     longitude: number;
     pesan: string;
-    urlFoto: string;
+    status: EmergencyStatus;
+    urlFoto?: string;
     createdAt: string;
     updatedAt: string;
 }
 
+// Tracking step for UI
+export interface TrackingStep {
+    status: EmergencyStatus;
+    label: string;
+    description: string;
+    icon: string;
+    timestamp?: string;
+    isCompleted: boolean;
+    isActive: boolean;
+}
+
 interface EmergencyStore {
-    reports: EmergencyNotification[];
+    reports: EmergencyReport[];
+    activeReport: EmergencyReport | null;
     loading: boolean;
     error: string | null;
     createReport: (data: any) => Promise<any>;
@@ -115,3 +130,4 @@ const useEmergencyStore = create<EmergencyStore>((set, get) => ({
 }));
 
 export default useEmergencyStore;
+

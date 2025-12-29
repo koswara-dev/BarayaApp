@@ -2,15 +2,25 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/AntDesign';
 import { useNavigation } from '@react-navigation/native';
+import useToastStore from '../stores/toastStore';
 
-export default function ServiceCard({ title, subtitle, icon }: any) {
+export default function ServiceCard({ title, subtitle, icon, comingSoon }: any) {
   const navigation = useNavigation<any>();
+  const showToast = useToastStore((state) => state.showToast);
+
+  const handlePress = () => {
+    if (comingSoon) {
+      showToast('Fitur belum tersedia', 'info');
+    } else {
+      navigation.navigate('ServiceDetail');
+    }
+  };
 
   return (
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.75}
-      onPress={() => navigation.navigate('ServiceDetail')}
+      onPress={handlePress}
     >
       <View style={styles.iconWrapper}>
         <Icon name={icon} size={22} color="#2563EB" />
@@ -69,5 +79,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
     lineHeight: 16,
+  },
+  cardDisabled: {
+    backgroundColor: '#F1F5F9',
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  textDisabled: {
+    color: '#94A3B8',
+  },
+  badge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
   },
 });

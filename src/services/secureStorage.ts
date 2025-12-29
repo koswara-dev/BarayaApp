@@ -18,7 +18,7 @@ export const SecureStorage = {
             });
             return true;
         } catch (error) {
-            console.error('Error storing token:', error);
+            // console.error('Error storing token:', error);
             return false;
         }
     },
@@ -37,7 +37,7 @@ export const SecureStorage = {
             }
             return null;
         } catch (error) {
-            console.error('Error retrieving token:', error);
+            // console.error('Error retrieving token:', error);
             return null;
         }
     },
@@ -52,7 +52,7 @@ export const SecureStorage = {
             });
             return true;
         } catch (error) {
-            console.error('Error removing token:', error);
+            // console.error('Error removing token:', error);
             return false;
         }
     },
