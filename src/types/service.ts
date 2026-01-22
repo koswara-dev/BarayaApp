@@ -14,6 +14,9 @@ export interface Service {
         id: number;
         nama: string;
     };
+    urlWebLayanan?: string | null;
+    informasiDetail?: string | null;
+    online?: boolean;
     createdAt: string;
     updatedAt: string;
 }

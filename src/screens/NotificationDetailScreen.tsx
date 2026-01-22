@@ -121,7 +121,7 @@ export default function NotificationDetailScreen() {
                             if (notification.category === 'PENGADUAN' && refId) {
                                 // Check if user is Admin/Staff to direct to Admin Screen
                                 const role = require('../stores/authStore').default.getState().user?.role;
-                                const isAdminOrStaff = role === 'ADMIN' || role === 'STAFF' || role === 'SUPERADMIN';
+                                const isAdminOrStaff = role === 'ADMIN' || role === 'STAFF' || role === 'SUPERADMIN' || role === 'EXECUTIVE';
                                 
                                 if (isAdminOrStaff) {
                                     navigation.navigate('AdminPengaduanDetail' as never, { id: refId } as never);
@@ -131,7 +131,7 @@ export default function NotificationDetailScreen() {
                             } else if (notification.category === 'DARURAT' && refId) {
                                 navigation.navigate('EmergencyDetail' as never, { report: { id: refId } } as never);
                             } else if (notification.category === 'EVENT' && refId) {
-                                navigation.navigate('EventDetail' as never, { event: { id: refId } } as never); 
+                                navigation.navigate('EventDetail' as never, { id: refId } as never); 
                             }
                         }}
                     >

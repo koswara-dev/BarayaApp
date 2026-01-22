@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import useAuthStore from '../stores/authStore';
+import useNotificationStore from '../stores/notificationStore';
 
 interface HeaderProps {
   onNotificationPress?: () => void;
@@ -11,6 +12,9 @@ interface HeaderProps {
 export default function Header({ onNotificationPress, user: propUser }: HeaderProps) {
   const storeUser = useAuthStore((state) => state.user);
   const user = propUser || storeUser;
+  const notifications = useNotificationStore(state => state.notifications);
+  
+  const hasUnread = notifications.some(n => !n.read);
 
   // Simple time-based greeting
   const getGreeting = () => {
@@ -48,7 +52,7 @@ export default function Header({ onNotificationPress, user: propUser }: HeaderPr
           onPress={onNotificationPress}
         >
           <Icon name="notifications" size={24} color="#334155" />
-          <View style={styles.badge} />
+          {hasUnread && <View style={styles.badge} />}
         </TouchableOpacity>
       </View>
     </View>

@@ -7,9 +7,11 @@ interface IndustrialImagePickerProps {
     photo: any;
     onPhotoSelected: (photo: any) => void;
     onPhotoRemoved: () => void;
+    placeholderText?: string;
+    cameraOnly?: boolean;
 }
 
-export default function IndustrialImagePicker({ photo, onPhotoSelected, onPhotoRemoved }: IndustrialImagePickerProps) {
+export default function IndustrialImagePicker({ photo, onPhotoSelected, onPhotoRemoved, placeholderText, cameraOnly = false }: IndustrialImagePickerProps) {
     const handleCamera = async () => {
         const result = await launchCamera({ mediaType: 'photo', quality: 0.5 });
         if (result.assets && result.assets.length > 0) {
@@ -41,12 +43,14 @@ export default function IndustrialImagePicker({ photo, onPhotoSelected, onPhotoR
                 <View style={styles.photoActionRow}>
                     <TouchableOpacity style={styles.photoActionBtn} onPress={handleCamera}>
                         <Icon name="camera" size={24} color="#0F172A" />
-                        <Text style={styles.photoActionText}>KAMERA</Text>
+                        <Text style={styles.photoActionText}>{placeholderText || 'KAMERA'}</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.photoActionBtn, styles.photoActionSecondary]} onPress={handleGallery}>
-                        <Icon name="images" size={24} color="#0F172A" />
-                        <Text style={styles.photoActionText}>GALERI</Text>
-                    </TouchableOpacity>
+                    {!cameraOnly && (
+                        <TouchableOpacity style={[styles.photoActionBtn, styles.photoActionSecondary]} onPress={handleGallery}>
+                            <Icon name="images" size={24} color="#0F172A" />
+                            <Text style={styles.photoActionText}>GALERI</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             )}
         </View>

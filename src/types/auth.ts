@@ -2,7 +2,10 @@
 
 export enum Role {
     SUPERADMIN = 'SUPERADMIN',
+    EXECUTIVE = 'EXECUTIVE',
     ADMIN = 'ADMIN',
+    ASDA = 'ASDA',
+    CAMAT = 'CAMAT',
     STAFF = 'STAFF',
     USER = 'USER',
 }
@@ -16,6 +19,7 @@ export interface User {
     fullName: string;
     role: UserRole;
     dinasId?: string; // Added to support role-based scoping (e.g. ADMIN of a specific dinas)
+    camatId?: number; // Added to support kecamatan scoping
 }
 
 
@@ -51,6 +55,8 @@ export interface JWTPayload {
     fullName: string;
     username?: string; // Add username if available
     email?: string; // Add email if available
+    dinasId?: string | number; // Add dinasId if available
+    camatId?: number; // Add camatId if available
     exp: number;      // expiration timestamp
     iat: number;      // issued at timestamp
 }

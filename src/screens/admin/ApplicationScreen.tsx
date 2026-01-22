@@ -6,7 +6,6 @@ import {
     ScrollView,
     TouchableOpacity,
     Dimensions,
-    SafeAreaView,
     StatusBar,
     Image,
     Platform,
@@ -15,6 +14,7 @@ import {
     Animated,
     Easing
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -30,9 +30,7 @@ import { Role } from '../../types/auth';
 const { width } = Dimensions.get('window');
 
 // Enable LayoutAnimation for Android
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-    UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+
 
 interface MenuItem {
     label: string;
@@ -45,19 +43,23 @@ interface MenuItem {
 
 // Define the menu structure based on the image
 const PUBLIC_SERVICES: MenuItem[] = [
-    { label: 'List\nPengaduan', icon: 'message-alert-outline', type: 'mci', route: 'AdminPengaduanList', allowedRoles: [Role.SUPERADMIN, Role.ADMIN, Role.STAFF] },
-    { label: 'List\nLayanan', icon: 'room-service-outline', type: 'mci' }, // service list
-    { label: 'Rekap\nPengaduan', icon: 'chart-box-outline', type: 'mci', allowedRoles: [Role.SUPERADMIN, Role.ADMIN] },
-    { label: 'Rekap\nLayanan', icon: 'chart-bar', type: 'mci', allowedRoles: [Role.SUPERADMIN, Role.ADMIN] },
+    { label: 'List\nPengaduan', icon: 'message-alert-outline', type: 'mci', route: 'AdminPengaduanList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF] },
+    { label: 'List\nLayanan', icon: 'room-service-outline', type: 'mci', route: 'LayananList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF] }, // service list
+    { label: 'List\nDarurat', icon: 'alert-circle-outline', type: 'mci', route: 'DaruratList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF] },
+    { label: 'List\nBerita', icon: 'newspaper-variant-outline', type: 'mci', route: 'AdminBeritaList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF] },
     { label: 'List\nEvent', icon: 'calendar-month-outline', type: 'mci', route: 'EventList' },
-    { label: 'Buat\nEvent', icon: 'calendar-plus', type: 'mci', route: 'CreateEvent', allowedRoles: [Role.SUPERADMIN, Role.ADMIN] },
+    { label: 'Buat\nEvent', icon: 'calendar-plus', type: 'mci', route: 'CreateEvent', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN] },
+    { label: 'Samsat\nKeliling', icon: 'card-outline', type: 'ion', route: 'SamsatKeliling', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF] },
 ];
 
 const INTERNAL_MANAGEMENT: MenuItem[] = [
+    { label: 'List\nASDA', icon: 'account-tie', type: 'mci', route: 'AsdaList' },
+    { label: 'List\nCamat', icon: 'map-outline', type: 'ion', route: 'CamatList' },
     { label: 'List\nDinas', icon: 'office-building-outline', type: 'mci', route: 'DinasList' },
-    { label: 'Buat\nDinas', icon: 'office-building-plus-outline', type: 'mci', route: 'CreateDinas', allowedRoles: [Role.SUPERADMIN] },
-    { label: 'Buat\nLayanan', icon: 'room-service-outline', type: 'mci', route: 'CreateLayanan', allowedRoles: [Role.SUPERADMIN, Role.ADMIN] },
-    { label: 'Pengaturan', icon: 'cog-outline', type: 'mci', route: 'Pengaturan', allowedRoles: [Role.SUPERADMIN] },
+    { label: 'Buat\nDinas', icon: 'office-building-outline', type: 'mci', route: 'CreateDinas', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE] },
+    { label: 'Buat\nLayanan', icon: 'room-service-outline', type: 'mci', route: 'CreateLayanan', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN] },
+    { label: 'Analisis\nAI', icon: 'head-snowflake-outline', type: 'mci', route: 'AnalisisAIList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN] },
+    { label: 'Pengaturan', icon: 'cog-outline', type: 'mci', route: 'Pengaturan', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE] },
 ];
 
 export default function ApplicationScreen() {

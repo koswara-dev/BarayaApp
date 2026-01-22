@@ -22,6 +22,9 @@ export interface EmergencyReport {
     pesan: string;
     status: EmergencyStatus;
     urlFoto?: string;
+    urlFotoSelesai?: string;
+    updatedBy?: string;
+    updatedByName?: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -53,7 +56,8 @@ interface EmergencyStore {
     getTrackingSteps: () => TrackingStep[];
     setModalVisible: (visible: boolean, data?: EmergencyReport) => void;
     showModalWithFetch: (eventId: number | string) => Promise<void>;
-    updateReportStatus: (id: number, status: string) => Promise<boolean>;
+    updateReportStatus: (id: number, status: string, existingData?: EmergencyReport, extraData?: any) => Promise<boolean>;
+    fetchReports: (params?: any) => Promise<void>;
 }
 
 // Default tracking steps
@@ -117,8 +121,6 @@ const useEmergencyStore = create<EmergencyStore>()(
                 set({ loading: true, error: null });
                 try {
                     const token = useAuthStore.getState().token;
-                    if (!token) throw new Error("Authentication required");
-
                     const parts: any[] = [
                         { name: 'latitude', data: String(data.latitude) },
                         { name: 'longitude', data: String(data.longitude) },
@@ -141,37 +143,40 @@ const useEmergencyStore = create<EmergencyStore>()(
                         if (compressedUri) {
                             const extension = fileType.includes('png') ? '.png' : '.jpg';
                             const fileName = data.foto.fileName || `emergency_${Date.now()}${extension}`;
-
-                            let uri = compressedUri;
-                            if (Platform.OS === 'ios') {
-                                uri = uri.replace('file://', '');
-                            }
+                            const realUri = Platform.OS === 'ios' ? compressedUri.replace('file://', '') : compressedUri;
 
                             parts.push({
                                 name: 'foto',
                                 filename: fileName,
                                 type: fileType,
-                                data: ReactNativeBlobUtil.wrap(uri)
+                                data: ReactNativeBlobUtil.wrap(realUri)
                             });
                         }
                     }
 
+                    // Debug: Log payload before sending
+                    console.log('=== CREATE EMERGENCY REPORT DEBUG (RN Blob Util) ===');
+                    console.log('Payload Parts:', JSON.stringify(parts.map(p => ({ ...p, data: p.name === 'foto' ? '[BINARY]' : p.data })), null, 2));
+
                     const response = await ReactNativeBlobUtil.fetch('POST', `${API_BASE_URL}/darurat`, {
-                        Authorization: `Bearer ${token}`,
+                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'multipart/form-data',
                     }, parts);
 
-                    const responseText = await response.text();
+                    const respStatus = response.info().status;
+                    const respText = await response.text();
+                    console.log('API Response Status:', respStatus);
+                    console.log('API Response Body:', respText);
 
-                    let responseData;
+                    let respJson;
                     try {
-                        responseData = JSON.parse(responseText);
+                        respJson = JSON.parse(respText);
                     } catch (e) {
-                        responseData = { success: false, message: 'Invalid response from server' };
+                         throw new Error(`Invalid JSON response: ${respText.substring(0, 100)}...`);
                     }
 
-                    if (response.info().status >= 200 && response.info().status < 300 && responseData.success) {
-                        const newReport: EmergencyReport = responseData.data;
+                    if (respStatus >= 200 && respStatus < 300 && respJson.success) {
+                        const newReport: EmergencyReport = respJson.data;
                         const currentReports = get().reports;
 
                         set({
@@ -184,11 +189,21 @@ const useEmergencyStore = create<EmergencyStore>()(
 
                         return newReport;
                     } else {
-                        throw new Error(responseData.message || 'Gagal mengirim laporan');
+                        throw new Error(respJson.message || 'Gagal mengirim laporan');
                     }
                 } catch (error: any) {
-                    set({ loading: false, error: error.message || 'Gagal mengirim data' });
-                    throw error;
+                    let errorMessage = 'Gagal mengirim laporan darurat';
+                    
+                    if (error.response?.data?.message) {
+                        errorMessage = error.response.data.message;
+                    } else if (error.message === 'Network Error' || error.message?.includes('Network request failed')  || error.code === 'ECONNABORTED') {
+                        errorMessage = 'Gangguan koneksi internet. Pastikan Anda terhubung ke internet lalu coba lagi.';
+                    } else if (error.message) {
+                        errorMessage = error.message;
+                    }
+
+                    set({ loading: false, error: errorMessage });
+                    throw new Error(errorMessage);
                 }
             },
 
@@ -222,40 +237,104 @@ const useEmergencyStore = create<EmergencyStore>()(
                 });
             },
 
-            updateReportStatus: async (id, status) => {
-                set({ loading: true, error: null });
-                try {
-                    // Using generic PUT endpoint. If specific endpoint exists (e.g., /status), adjust here.
-                    const response = await api.put(`/darurat`, { id, status });
-                    
-                    if (response.data.success) {
-                        const updatedReport = response.data.data;
-                        
-                        // Update local list
-                        const currentReports = get().reports.map(r => 
-                            r.id === id ? { ...r, status: status as any } : r
-                        );
-                        
-                        // Update active report if matches
-                        const activeReport = get().activeReport;
-                        const updatedActive = activeReport?.id === id ? { ...activeReport, status: status as any } : activeReport;
+    updateReportStatus: async (id, status, existingData?: EmergencyReport, extraData?: any) => {
+        set({ loading: true, error: null });
+        try {
+            const token = useAuthStore.getState().token;
+            const sourceData = existingData || 
+                              get().reports.find(r => r.id === id) || 
+                              (get().activeReport?.id === id ? get().activeReport : null) || 
+                              (get().modalData?.id === id ? get().modalData : null);
 
-                        set({ 
-                            reports: currentReports, 
-                            activeReport: updatedActive, 
-                            modalData: updatedReport || (get().modalData?.id === id ? { ...get().modalData, status: status as any } : get().modalData),
-                            loading: false 
-                        });
-                        return true;
-                    } else {
-                        throw new Error(response.data.message || 'Gagal update status');
-                    }
-                } catch (error: any) {
-                    console.log('Update status failed:', error);
-                    set({ loading: false, error: error.message || 'Gagal update status' });
-                    return false;
+            const parts: any[] = [
+                { name: 'status', data: status }
+            ];
+
+            if (sourceData) {
+                if (sourceData.pesan) parts.push({ name: 'pesan', data: sourceData.pesan });
+                if (sourceData.latitude !== undefined) parts.push({ name: 'latitude', data: String(sourceData.latitude) });
+                if (sourceData.longitude !== undefined) parts.push({ name: 'longitude', data: String(sourceData.longitude) });
+                if (sourceData.userId) parts.push({ name: 'userId', data: String(sourceData.userId) });
+                if (sourceData.dinasId) parts.push({ name: 'dinasId', data: String(sourceData.dinasId) });
+            }
+
+            // Handle extraData (fotoSelesai, updatedBy, etc.)
+            if (extraData) {
+                if (extraData.updatedBy) {
+                    parts.push({ name: 'updatedBy', data: String(extraData.updatedBy) });
                 }
-            },
+                if (extraData.updatedByName) {
+                    parts.push({ name: 'updatedByName', data: extraData.updatedByName });
+                }
+                
+                // Handle fotoSelesai logic
+                if (extraData.fotoSelesai && extraData.fotoSelesai.uri) {
+                    const photo = extraData.fotoSelesai;
+                    const fileType = photo.type || 'image/jpeg';
+                    const compressedUri = await compressImage(photo.uri, fileType);
+                    
+                    if (compressedUri) {
+                        const extension = fileType.includes('png') ? '.png' : '.jpg';
+                        const fileName = photo.fileName || `emergency_selesai_${Date.now()}${extension}`;
+                        const realUri = Platform.OS === 'ios' ? compressedUri.replace('file://', '') : compressedUri;
+
+                        parts.push({
+                            name: 'fotoSelesai',
+                            filename: fileName,
+                            type: fileType,
+                            data: ReactNativeBlobUtil.wrap(realUri)
+                        });
+                    }
+                }
+            }
+
+            console.log(`Updating Status #${id} to ${status} via BlobUtil...`);
+            // Debug parts
+            // console.log('Parts:', JSON.stringify(parts.map(p => ({...p, data: p.data?.length > 100 ? '[BLOB]' : p.data})), null, 2));
+            
+            const response = await ReactNativeBlobUtil.fetch('PUT', `${API_BASE_URL}/darurat/${id}`, {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data',
+            }, parts);
+
+            const respStatus = response.info().status;
+            const respText = await response.text();
+            
+            let respJson;
+            try {
+                respJson = JSON.parse(respText);
+            } catch (e) {
+                 throw new Error('Invalid JSON response from server');
+            }
+            
+            if (respStatus >= 200 && respStatus < 300 && respJson.success) {
+                const updatedReport = respJson.data;
+                
+                // Update local list
+                const currentReports = get().reports.map(r => 
+                    r.id === id ? { ...r, ...updatedReport, status: status as any } : r
+                );
+                
+                // Update active report if matches
+                const activeReport = get().activeReport;
+                const updatedActive = activeReport?.id === id ? { ...activeReport, ...updatedReport, status: status as any } : activeReport;
+
+                set({ 
+                    reports: currentReports, 
+                    activeReport: updatedActive, 
+                    modalData: updatedReport || (get().modalData?.id === id ? { ...get().modalData, ...updatedReport, status: status as any } : get().modalData),
+                    loading: false 
+                });
+                return true;
+            } else {
+                throw new Error(respJson.message || 'Gagal update status');
+            }
+        } catch (error: any) {
+            console.log('Update status failed:', error);
+            set({ loading: false, error: error.message || 'Gagal update status' });
+            return false;
+        }
+    },
 
             showModalWithFetch: async (eventId) => {
                 if (!eventId) return;
@@ -311,6 +390,63 @@ const useEmergencyStore = create<EmergencyStore>()(
                 } catch (error) {
                     console.log('Error in showModalWithFetch:', error);
                     set({ loading: false, error: 'Terjadi kesalahan koneksi' });
+                }
+            },
+
+            fetchReports: async (params?: any) => {
+                set({ loading: true, error: null });
+                try {
+                    // Build query string logic if needed, or pass params directly if api supports it
+                    // Assuming api.get supports params object in axios config, but here we use custom api wrapper.
+                    // Let's manually build query string for safety or use params if the api wrapper supports it.
+                    // Checking existing code: api.get('/darurat') is used.
+                    // We'll append query string.
+                    
+                    let query = '/darurat';
+                    const queryParams: string[] = [];
+                    
+                    const user = useAuthStore.getState().user;
+
+                    // Default sort
+                    queryParams.push('sort=createdAt,desc');
+
+                    if (params) {
+                        if (params.status) queryParams.push(`status=${params.status}`);
+                        if (params.page !== undefined) queryParams.push(`page=${params.page}`);
+                        
+                        // Handle dinasId based on role
+                        if (user?.role === 'ADMIN' || user?.role === 'STAFF') {
+                            if (user.dinasId) {
+                                queryParams.push(`dinasId=${user.dinasId}`);
+                            }
+                        } else if (params.dinasId) {
+                            queryParams.push(`dinasId=${params.dinasId}`);
+                        }
+                    } else {
+                         // Even if no params passed, check role for dinasId
+                        if (user?.role === 'ADMIN' || user?.role === 'STAFF') {
+                            if (user && user.dinasId) {
+                                queryParams.push(`dinasId=${user.dinasId}`);
+                            }
+                        }
+                    }
+
+                    if (queryParams.length > 0) {
+                        query += `?${queryParams.join('&')}`;
+                    }
+
+                    const response = await api.get(query);
+                    if (response.data.success) {
+                         const content = response.data.data.content || [];
+                         set({ 
+                             reports: content, 
+                             loading: false 
+                         });
+                    } else {
+                        set({ error: 'Gagal memuat data laporan darurat', loading: false });
+                    }
+                } catch (error: any) {
+                    set({ error: error.message || 'Gagal memuat data', loading: false });
                 }
             }
         }),

@@ -68,11 +68,6 @@ export const EmergencyReportCard = ({ item, onPress }: EmergencyReportCardProps)
             )}
 
             <View style={styles.footer}>
-                <TouchableOpacity style={styles.actionBtn} onPress={handleCall}>
-                    <Icon name="call" size={18} color="#FFFFFF" />
-                    <Text style={styles.actionText}>Hubungi</Text>
-                </TouchableOpacity>
-
                 <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn]} onPress={onPress}>
                     <Text style={[styles.actionText, styles.secondaryText]}>Detail Laporan</Text>
                 </TouchableOpacity>

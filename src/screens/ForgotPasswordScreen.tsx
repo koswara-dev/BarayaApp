@@ -1,73 +1,44 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
-    TextInput,
     KeyboardAvoidingView,
     Platform,
-    ScrollView
+    ScrollView,
+    StatusBar,
+    TextInput
 } from 'react-native';
-import InputField from '../components/InputField';
-import PrimaryButton from '../components/PrimaryButton';
 import useToastStore from '../stores/toastStore';
 import api from '../config/api';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Icon from 'react-native-vector-icons/Ionicons';
 import LoadingOverlay from '../components/LoadingOverlay';
-import CustomAlert from '../components/CustomAlert';
 
 export default function ForgotPasswordScreen({ navigation }: any) {
     const showToast = useToastStore((state) => state.showToast);
 
-    // Step state: 1: Email, 2: OTP, 3: New Password
-    const [step, setStep] = useState(1);
-
-    // Form States
     const [email, setEmail] = useState('');
-    const [otp, setOtp] = useState(['', '', '', '', '', '']);
-    const [newPass, setNewPass] = useState({ password: '', confirm: '' });
-    const [showPass, setShowPass] = useState(false);
-    const [showConfirmPass, setShowConfirmPass] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [otpError, setOtpError] = useState('');
-    const [showAlert, setShowAlert] = useState(false);
 
-    const otpRefs = useRef<Array<TextInput | null>>([]);
-
-    // Auto submit when all 6 digits filled
-    useEffect(() => {
-        const otpCode = otp.join('');
-        if (otpCode.length === 6 && step === 2) {
-            handleVerifyOtp();
-        }
-    }, [otp, step]);
-
-    // Step 1: Request Reset (Send Email)
     const handleRequestReset = async () => {
-        if (!email) {
+        if (!email.trim()) {
             showToast("Mohon masukkan email Anda", "error");
             return;
         }
 
         setLoading(true);
         try {
-            // Using the user provided endpoint
             const response = await api.post('/auth/forgot-password', { email });
 
-            // Assume success if status 200/201 or data.success is true
             if (response.status === 200 || response.data?.success) {
                 showToast("Kode verifikasi telah dikirim ke email Anda", "success");
-                setStep(2);
+                navigation.navigate('ResetPassword', { email: email });
             } else {
                 showToast(response.data?.message || "Gagal mengirim kode", "error");
             }
         } catch (error: any) {
             console.error("Forgot Password Request Error:", error);
-            // Fallback for demo purposes if API is strict or fails
-            // showToast(error.message, "error");
-            // Assuming for this task we might want to proceed to UI demo if API fails?
-            // No, stick to error reporting or simple success flow simulation if real API is down.
             const msg = error.response?.data?.message || "Terjadi kesalahan";
             showToast(msg, "error");
         } finally {
@@ -75,239 +46,64 @@ export default function ForgotPasswordScreen({ navigation }: any) {
         }
     };
 
-    // Step 2: Verify OTP
-    const handleVerifyOtp = async () => {
-        const otpCode = otp.join('');
-        if (otpCode.length < 6) {
-            showToast("Masukkan 6 digit kode OTP", "error");
-            return;
-        }
+    return (
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.container}
+        >
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+            <LoadingOverlay visible={loading} message="Mengirim Kode..." />
 
-        setLoading(true);
-        setOtpError('');
-        try {
-            // NOTE: The endpoint for verifying RESET OTP wasn't explicitly provided in the last prompt.
-            // Often it's the same /auth/verify-otp or a specific one.
-            // I'll try to use /auth/verify-otp as a best guess, or mock it if it's strictly for registration.
-            // Since User requested "step per step", I'll implement the logic assuming it exists.
-
-            // const response = await api.post('/auth/verify-otp-reset', { email, otp: otpCode });
-
-            // Simulating API call for this step as endpoint is ambiguous
-            await new Promise<void>(resolve => setTimeout(resolve, 1000));
-
-            // If successful
-            setStep(3);
-        } catch (error) {
-            setOtpError("Kode OTP tidak valid");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Step 3: Reset Password
-    const handleResetPassword = async () => {
-        if (newPass.password.length < 6) {
-            showToast("Password minimal 6 karakter", "error");
-            return;
-        }
-        if (newPass.password !== newPass.confirm) {
-            showToast("Konfirmasi password tidak cocok", "error");
-            return;
-        }
-
-        setLoading(true);
-        try {
-            // NOTE: Reset Password endpoint not provided.
-            // Simulating API call
-            await new Promise<void>(resolve => setTimeout(resolve, 1500));
-
-            setLoading(false);
-            setShowAlert(true);
-        } catch (error) {
-            showToast("Gagal mengubah password", "error");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleOtpChange = (val: string, index: number) => {
-        if (val && !/^\d+$/.test(val)) return;
-
-        const newOtp = [...otp];
-        newOtp[index] = val;
-        setOtp(newOtp);
-        if (otpError) setOtpError('');
-
-        if (val.length === 1 && index < 5) {
-            setTimeout(() => {
-                otpRefs.current[index + 1]?.focus();
-            }, 10);
-        }
-    };
-
-    const handleKeyPress = ({ nativeEvent: { key } }: any, index: number) => {
-        if (key === 'Backspace') {
-            if (otp[index] === '' && index > 0) {
-                const newOtp = [...otp];
-                newOtp[index - 1] = '';
-                setOtp(newOtp);
-                setTimeout(() => {
-                    otpRefs.current[index - 1]?.focus();
-                }, 10);
-            } else if (otp[index] !== '') {
-                const newOtp = [...otp];
-                newOtp[index] = '';
-                setOtp(newOtp);
-            }
-        }
-    };
-
-    // Render Steps
-    const renderStep1 = () => (
-        <View style={styles.stepContainer}>
             <View style={styles.header}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
+                    <Icon name="arrow-back" size={24} color="#0F172A" />
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+            >
+                <View style={styles.logoWrapper}>
+                    <View style={styles.logoBox}>
+                        <Icon name="lock-open-outline" size={32} color="#FFB800" />
+                    </View>
+                </View>
+
                 <Text style={styles.title}>Lupa Kata Sandi?</Text>
                 <Text style={styles.subtitle}>
                     Masukkan email yang terdaftar untuk menerima kode verifikasi pemulihan kata sandi.
                 </Text>
-            </View>
 
-            <InputField
-                label="Email"
-                icon="mail"
-                placeholder="nama@email.com"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-            />
+                <View style={styles.formContainer}>
+                    <Text style={styles.inputLabel}>Email</Text>
+                    <View style={styles.inputBox}>
+                        <Icon name="mail-outline" size={20} color="#94A3B8" />
+                        <TextInput
+                            style={styles.input}
+                            placeholder="nama@email.com"
+                            placeholderTextColor="#94A3B8"
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                        />
+                    </View>
 
-            <PrimaryButton
-                title="Kirim Kode"
-                onPress={handleRequestReset}
-                style={{ marginTop: 24 }}
-            />
-        </View>
-    );
-
-    const renderStep2 = () => (
-        <View style={styles.stepContainer}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Verifikasi OTP</Text>
-                <Text style={styles.subtitle}>
-                    Masukkan 6 digit kode yang telah dikirim ke <Text style={{ fontWeight: 'bold', color: '#0F172A' }}>{email}</Text>
-                </Text>
-            </View>
-
-            <View style={styles.otpContainer}>
-                {otp.map((digit, index) => (
-                    <TextInput
-                        key={index}
-                        ref={(ref) => { otpRefs.current[index] = ref; }}
-                        style={[
-                            styles.otpInput,
-                            digit ? styles.otpInputActive : {},
-                            otpError ? styles.otpInputError : {}
-                        ]}
-                        value={digit}
-                        onChangeText={(val) => handleOtpChange(val, index)}
-                        onKeyPress={(e) => handleKeyPress(e, index)}
-                        keyboardType="number-pad"
-                        maxLength={1}
-                        textAlign="center"
-                    />
-                ))}
-            </View>
-
-            {otpError ? (
-                <Text style={styles.errorText}>{otpError}</Text>
-            ) : null}
-
-            <PrimaryButton
-                title="Verifikasi"
-                onPress={handleVerifyOtp}
-                style={{ marginTop: 32 }}
-            />
-
-            <TouchableOpacity onPress={() => setStep(1)} style={styles.resendLinkContainer}>
-                <Text style={styles.resendLink}>Ubah Email</Text>
-            </TouchableOpacity>
-        </View>
-    );
-
-    const renderStep3 = () => (
-        <View style={styles.stepContainer}>
-            <View style={styles.header}>
-                <Text style={styles.title}>Buat Password Baru</Text>
-                <Text style={styles.subtitle}>
-                    Silakan buat kata sandi baru untuk akun Anda.
-                </Text>
-            </View>
-
-            <InputField
-                label="Password Baru"
-                icon="lock-closed"
-                placeholder="Minimal 6 karakter"
-                secureTextEntry={!showPass}
-                value={newPass.password}
-                onChangeText={(t) => setNewPass({ ...newPass, password: t })}
-                rightIcon={showPass ? "eye" : "eye-off"}
-                onRightIconPress={() => setShowPass(!showPass)}
-            />
-
-            <InputField
-                label="Konfirmasi Password"
-                icon="lock-check"
-                placeholder="Ulangi password baru"
-                secureTextEntry={!showConfirmPass}
-                value={newPass.confirm}
-                onChangeText={(t) => setNewPass({ ...newPass, confirm: t })}
-                rightIcon={showConfirmPass ? "eye" : "eye-off"}
-                onRightIconPress={() => setShowConfirmPass(!showConfirmPass)}
-            />
-
-            <PrimaryButton
-                title="Simpan Password"
-                onPress={handleResetPassword}
-                style={{ marginTop: 24 }}
-            />
-        </View>
-    );
-
-    return (
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
-            <LoadingOverlay visible={loading} />
-            <CustomAlert
-                visible={showAlert}
-                title="Password Diupdate"
-                message="Kata sandi Anda telah berhasil diubah. Silakan masuk kembali dengan kata sandi baru Anda."
-                onClose={() => {
-                    setShowAlert(false);
-                    navigation.reset({
-                        index: 0,
-                        routes: [{ name: 'Login' }],
-                    });
-                }}
-            />
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                <TouchableOpacity onPress={() => step === 1 ? navigation.goBack() : setStep(step - 1)} style={styles.backButton}>
-                    <Icon name="arrow-left" size={24} color="#1E293B" />
-                </TouchableOpacity>
-
-                {/* Progress Indicator */}
-                <View style={styles.progressContainer}>
-                    <View style={[styles.progressStep, step >= 1 && styles.activeStep]} />
-                    <View style={[styles.progressLine, step >= 2 && styles.activeLine]} />
-                    <View style={[styles.progressStep, step >= 2 && styles.activeStep]} />
-                    <View style={[styles.progressLine, step >= 3 && styles.activeLine]} />
-                    <View style={[styles.progressStep, step >= 3 && styles.activeStep]} />
+                    <TouchableOpacity
+                        style={styles.loginBtn}
+                        onPress={handleRequestReset}
+                        disabled={loading}
+                    >
+                        <Text style={styles.loginBtnText}>Kirim Kode</Text>
+                    </TouchableOpacity>
                 </View>
 
-                {step === 1 && renderStep1()}
-                {step === 2 && renderStep2()}
-                {step === 3 && renderStep3()}
+                <View style={{ height: 40 }} />
             </ScrollView>
+            
+            {/* Bottom Stripe */}
+            <View style={styles.bottomStripe} />
         </KeyboardAvoidingView>
     );
 }
@@ -315,99 +111,97 @@ export default function ForgotPasswordScreen({ navigation }: any) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8FAFC',
-    },
-    scrollContent: {
-        padding: 24,
-        flexGrow: 1,
-    },
-    backButton: {
-        marginBottom: 20,
-        width: 40,
-        height: 40,
-        justifyContent: 'center',
-    },
-    progressContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 32,
-        paddingHorizontal: 40,
-    },
-    progressStep: {
-        width: 12,
-        height: 12,
-        borderRadius: 6,
-        backgroundColor: '#E2E8F0',
-    },
-    activeStep: {
-        backgroundColor: '#2563EB',
-    },
-    progressLine: {
-        flex: 1,
-        height: 2,
-        backgroundColor: '#E2E8F0',
-        marginHorizontal: 4,
-    },
-    activeLine: {
-        backgroundColor: '#2563EB',
-    },
-    stepContainer: {
-        flex: 1,
+        backgroundColor: "#FFFFFF",
     },
     header: {
-        marginBottom: 32,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: '#0F172A',
-        marginBottom: 12,
-    },
-    subtitle: {
-        fontSize: 16,
-        color: '#64748B',
-        lineHeight: 24,
-    },
-    otpContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 10,
+        paddingHorizontal: 16,
+        paddingTop: Platform.OS === 'ios' ? 50 : 20,
     },
-    otpInput: {
-        width: 45,
-        height: 55,
+    headerBtn: {
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    scrollContent: {
+        paddingHorizontal: 24,
+        paddingTop: 20,
+    },
+    logoWrapper: {
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    logoBox: {
+        width: 70,
+        height: 70,
+        borderWidth: 1.5,
+        borderColor: '#FFB800',
+        borderRadius: 4,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFFFFF',
+    },
+    title: {
+        fontSize: 32,
+        fontWeight: "900",
+        textAlign: "center",
+        color: "#0F172A",
+        marginBottom: 8,
+    },
+    subtitle: {
+        fontSize: 14,
+        textAlign: "center",
+        color: "#64748B",
+        lineHeight: 22,
+        paddingHorizontal: 20,
+        marginBottom: 40,
+    },
+    formContainer: {
+        width: '100%',
+    },
+    inputLabel: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: '#0F172A',
+        marginBottom: 8,
+    },
+    inputBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
         borderWidth: 1,
         borderColor: '#E2E8F0',
-        borderRadius: 12,
-        backgroundColor: '#FFF',
-        fontSize: 24,
-        fontWeight: '700',
+        borderRadius: 4,
+        paddingHorizontal: 16,
+        height: 56,
+        backgroundColor: '#FFFFFF',
+        marginBottom: 24,
+    },
+    input: {
+        flex: 1,
+        marginLeft: 12,
+        fontSize: 15,
         color: '#0F172A',
-        textAlign: 'center',
+        fontWeight: '500',
     },
-    otpInputActive: {
-        borderColor: '#2563EB',
-        borderWidth: 1.5,
-    },
-    otpInputError: {
-        borderColor: '#EF4444',
-        borderWidth: 1.5,
-        backgroundColor: '#FEF2F2',
-    },
-    errorText: {
-        color: '#EF4444',
-        fontSize: 13,
-        fontWeight: '700',
-        marginBottom: 10,
-        textAlign: 'center',
-    },
-    resendLinkContainer: {
-        marginTop: 20,
+    loginBtn: {
+        width: '100%',
+        height: 56,
+        backgroundColor: '#FFB800',
+        borderRadius: 4,
         alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 32,
     },
-    resendLink: {
-        color: '#64748B',
-        fontWeight: '600',
+    loginBtnText: {
+        fontSize: 16,
+        fontWeight: '900',
+        color: '#0F172A',
+    },
+    bottomStripe: {
+        height: 8,
+        backgroundColor: '#FFB800',
+        width: '100%',
     },
 });

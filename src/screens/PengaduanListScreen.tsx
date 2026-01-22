@@ -15,6 +15,7 @@ import {
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import usePengaduanStore from '../stores/pengaduanStore';
+import useAuthStore from '../stores/authStore';
 import { getImageUrl } from '../config/api';
 import SkeletonShimmer from '../components/SkeletonShimmer';
 
@@ -79,23 +80,28 @@ const StatusBadge = ({ status }: { status: string }) => {
 export default function PengaduanListScreen() {
     const navigation = useNavigation<any>();
     const { list, loading, fetchPengaduan, hasMore, page } = usePengaduanStore();
+    const user = useAuthStore((state) => state.user);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     useEffect(() => {
         const loadData = async () => {
-            await fetchPengaduan({ page: 0 });
+             if (user?.id) {
+                await fetchPengaduan({ page: 0, userId: Number(user.id) });
+             }
             setIsInitialLoad(false);
         };
         loadData();
-    }, []);
+    }, [user?.id]);
 
     const onRefresh = () => {
-        fetchPengaduan({ page: 0 });
+        if (user?.id) {
+            fetchPengaduan({ page: 0, userId: Number(user.id) });
+        }
     };
 
     const onLoadMore = () => {
-        if (hasMore && !loading) {
-            fetchPengaduan({ page: page + 1, isLoadMore: true });
+        if (hasMore && !loading && user?.id) {
+            fetchPengaduan({ page: page + 1, isLoadMore: true, userId: Number(user.id) });
         }
     };
 

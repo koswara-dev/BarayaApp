@@ -1,6 +1,10 @@
 import { create } from "zustand";
-import api from "../config/api";
+import { Platform } from "react-native";
+import ReactNativeBlobUtil from 'react-native-blob-util';
+import api, { API_BASE_URL } from "../config/api";
 import { Service } from "../types/service";
+import useAuthStore from './authStore';
+import { compressImage } from '../utils/imageCompressor';
 
 interface LayananStore {
     layanan: Service[];
@@ -12,11 +16,13 @@ interface LayananStore {
     page: number;
     totalPages: number;
     hasMore: boolean;
-    fetchLayanan: (params?: { name?: string; page?: number; size?: number, isLoadMore?: boolean }) => Promise<void>;
+    fetchLayanan: (params?: { name?: string; page?: number; size?: number, isLoadMore?: boolean; dinasId?: number }) => Promise<void>;
     searchLayanan: (query: string) => Promise<void>;
-    fetchDinas: () => Promise<void>;
+    fetchDinas: (params?: { nama?: string; size?: number }) => Promise<void>;
     createLayanan: (data: any) => Promise<any>;
     createDinas: (data: any) => Promise<any>;
+    getLayananById: (id: number) => Promise<Service | null>;
+    updateLayanan: (id: number, data: any) => Promise<boolean>;
 }
 
 const useLayananStore = create<LayananStore>((set, get) => ({
@@ -31,7 +37,7 @@ const useLayananStore = create<LayananStore>((set, get) => ({
     hasMore: true,
 
     fetchLayanan: async (params = {}) => {
-        const { name, page = 0, size = 10, isLoadMore = false } = params;
+        const { name, page = 0, size = 10, isLoadMore = false, dinasId } = params;
 
         // Prevent loading more if already loading or no more data
         // Allow if it's a new fetch (page 0 / isLoadMore false) even if currently loading (to handle rapid tab switches)
@@ -46,9 +52,21 @@ const useLayananStore = create<LayananStore>((set, get) => ({
                 size
             };
 
+            const user = useAuthStore.getState().user;
+
             // Only add nama parameter if it is a valid string
             if (name) {
                 apiParams.nama = name;
+            }
+
+            // Auto-inject dinasId for ADMIN/STAFF if not explicitly provided (or force it)
+            if (user?.role === 'ADMIN' || user?.role === 'STAFF') {
+                 if (user.dinasId) {
+                     apiParams.dinasId = user.dinasId;
+                 }
+            } else if (dinasId) {
+                // For other roles (e.g. Superadmin filtering), use passed param
+                apiParams.dinasId = dinasId;
             }
 
             const response = await api.get("/layanan", { params: apiParams });
@@ -90,10 +108,17 @@ const useLayananStore = create<LayananStore>((set, get) => ({
         }
     },
 
-    fetchDinas: async () => {
+    fetchDinas: async (params?: { nama?: string; size?: number }) => {
         try {
             set({ loading: true, error: null });
-            const response = await api.get("/dinas");
+            const apiParams: any = {};
+            if (params?.nama) {
+                apiParams.nama = params.nama;
+            }
+            if (params?.size) {
+                apiParams.size = params.size;
+            }
+            const response = await api.get("/dinas", { params: apiParams });
             set({
                 dinas: response.data?.data?.content || [],
                 loading: false,
@@ -126,37 +151,131 @@ const useLayananStore = create<LayananStore>((set, get) => ({
     createDinas: async (data) => {
         set({ loading: true, error: null });
         try {
-            // Convert to FormData to support backend multipart/form-data requirement
-            const formData = new FormData();
-            formData.append('nama', data.nama);
-            formData.append('deskripsi', data.deskripsi);
-            formData.append('alamat', data.alamat);
-            formData.append('namaKadis', data.namaKadis);
+            const token = useAuthStore.getState().token;
+            const parts: any[] = [
+                { name: 'nama', data: data.nama },
+                { name: 'deskripsi', data: data.deskripsi },
+                { name: 'alamat', data: data.alamat },
+                { name: 'namaKadis', data: data.namaKadis },
+            ];
 
-            if (data.website) formData.append('website', data.website);
-            if (data.latitude) formData.append('latitude', String(data.latitude));
-            if (data.longitude) formData.append('longitude', String(data.longitude));
+            if (data.website) parts.push({ name: 'website', data: data.website });
+            if (data.latitude) parts.push({ name: 'latitude', data: String(data.latitude) });
+            if (data.longitude) parts.push({ name: 'longitude', data: String(data.longitude) });
 
-            // Note: Axios automatically sets the correct Content-Type with boundary when FormData is passed
-            // but we explicitly set multipart/form-data to override the default application/json in our api instance
-            const response = await api.post("/dinas", formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                }
-            });
+            const response = await ReactNativeBlobUtil.fetch('POST', `${API_BASE_URL}/dinas`, {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data',
+            }, parts);
+
+            const respText = await response.text();
+            let respJson;
+            try {
+                respJson = JSON.parse(respText);
+            } catch (e) {
+                 throw new Error(`Invalid JSON response: ${respText.substring(0, 100)}...`);
+            }
 
             set({ loading: false });
-            if (response.data?.success) {
-                return response.data.data;
+            if (response.info().status >= 200 && response.info().status < 300 && respJson.success) {
+                return respJson.data;
             } else {
-                throw new Error(response.data?.message || "Gagal membuat dinas");
+                throw new Error(respJson.message || "Gagal membuat dinas");
             }
         } catch (err: any) {
-            const msg = err?.response?.data?.message || err.message || "Terjadi kesalahan sistem";
+            const msg = err.message || "Terjadi kesalahan sistem";
             set({ loading: false, error: msg });
             throw new Error(msg);
         }
     },
+
+    getLayananById: async (id: number) => {
+        const existing = get().layanan.find(l => l.id === id);
+        if (existing) return existing;
+
+        set({ loading: true });
+        try {
+            const response = await api.get(`/layanan/${id}`);
+            set({ loading: false });
+            if (response.data?.success) {
+                return response.data.data;
+            }
+            return null;
+        } catch (error) {
+            console.log('Get layanan by id error:', error);
+            set({ loading: false });
+            return null;
+        }
+    },
+
+    updateLayanan: async (id: number, data: any) => {
+        set({ loading: true, error: null });
+        try {
+            const token = useAuthStore.getState().token;
+            const parts: any[] = [
+                { name: 'nama', data: data.nama },
+                { name: 'deskripsi', data: data.deskripsi },
+                { name: 'estimasiWaktu', data: String(data.estimasiWaktu) },
+                { name: 'phoneNumber', data: data.phoneNumber },
+                { name: 'email', data: data.email },
+                { name: 'dinasId', data: String(data.dinasId) },
+            ];
+
+            if (data.informasiDetail) parts.push({ name: 'informasiDetail', data: data.informasiDetail });
+            if (data.urlWebLayanan) parts.push({ name: 'urlWebLayanan', data: data.urlWebLayanan });
+            if (data.online !== undefined) parts.push({ name: 'online', data: String(data.online) });
+            
+            // Append Image if new one is selected
+            if (data.foto && data.foto.uri) {
+                const fileType = data.foto.type || 'image/jpeg';
+                const compressedUri = await compressImage(data.foto.uri, fileType);
+
+                if (compressedUri) {
+                    const extension = fileType.includes('png') ? '.png' : '.jpg';
+                    const fileName = data.foto.fileName || `layanan_${Date.now()}${extension}`;
+                    const realUri = Platform.OS === 'ios' ? compressedUri.replace('file://', '') : compressedUri;
+
+                    parts.push({
+                        name: 'gambar',
+                        filename: fileName,
+                        type: fileType,
+                        data: ReactNativeBlobUtil.wrap(realUri)
+                    });
+                }
+            }
+            
+            const response = await ReactNativeBlobUtil.fetch('PUT', `${API_BASE_URL}/layanan/${id}`, {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data',
+            }, parts);
+
+            const respText = await response.text();
+            let respJson;
+            try {
+                respJson = JSON.parse(respText);
+            } catch (e) {
+                 throw new Error(`Invalid JSON response: ${respText.substring(0, 100)}...`);
+            }
+
+             if (response.info().status >= 200 && response.info().status < 300 && respJson.success) {
+                // Update local list
+                set(state => ({
+                    layanan: state.layanan.map(item => item.id === id ? { ...item, ...respJson.data } : item),
+                    loading: false
+                }));
+                return true;
+            } else {
+                 throw new Error(respJson.message || 'Gagal mengupdate layanan');
+            }
+        } catch (error: any) {
+             console.log('Update layanan error:', error);
+             set({
+                loading: false,
+                error: error.message || 'Gagal mengupdate layanan'
+            });
+            return false;
+        }
+    }
 }));
 
 export default useLayananStore;

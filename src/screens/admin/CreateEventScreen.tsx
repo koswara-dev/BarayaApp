@@ -18,10 +18,12 @@ import {
 import DatePicker from 'react-native-date-picker';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
+import { useDebounce } from 'use-debounce';
+
 import useEventStore from '../../stores/eventStore';
 import useLayananStore from '../../stores/layananStore';
 import useToastStore from '../../stores/toastStore';
-import useNotificationStore from '../../stores/notificationStore';
+// useNotificationStore removed
 import LoadingOverlay from '../../components/LoadingOverlay';
 import PrimaryButton from '../../components/PrimaryButton';
 import IndustrialFormSection from '../../components/Form/IndustrialFormSection';
@@ -51,7 +53,7 @@ const formatDisplayDate = (isoString: string) => {
 export default function CreateEventScreen() {
     const navigation = useNavigation<any>();
     const { createEvent, loading: storeLoading } = useEventStore();
-    const { sendNotification } = useNotificationStore();
+    // notification store removed
     const { dinas, fetchDinas, loading: dinasLoading } = useLayananStore();
     const showToast = useToastStore((state) => state.showToast);
 
@@ -68,6 +70,10 @@ export default function CreateEventScreen() {
         dinasNama: '',
     });
     const [photo, setPhoto] = useState<any>(null);
+
+    // Dinas Search State
+    const [dinasSearch, setDinasSearch] = useState('');
+    const [debouncedDinasSearch] = useDebounce(dinasSearch, 500);
 
     // Picker State
     const [openStart, setOpenStart] = useState(false);
@@ -121,8 +127,8 @@ export default function CreateEventScreen() {
     }, [openStart, openEnd]);
 
     useEffect(() => {
-        fetchDinas();
-    }, []);
+        fetchDinas({ nama: debouncedDinasSearch });
+    }, [debouncedDinasSearch]);
 
     const handleSave = () => {
         // Validation
@@ -151,16 +157,7 @@ export default function CreateEventScreen() {
                 foto: photo,
             });
 
-            // Since createEvent now throws on error, if we reach here it was successful
-
-            // Broadcast notification to all users
-            await sendNotification({
-                judul: `Agenda Baru: ${form.judul}`,
-                pesan: `Hadirilah ${form.judul} di ${form.lokasi}. Cek detailnya sekarang!`,
-                category: 'EVENT',
-                eventId: newEvent.id,
-                target: 'all' // Hint for backend broadcasting
-            });
+            // Notification sending removed as it is handled by backend
 
             showToast('Event berhasil dibuat', 'success');
             navigation.goBack();
@@ -282,7 +279,7 @@ export default function CreateEventScreen() {
                 <IndustrialInput
                     placeholder="Deskripsi Lengkap Kegiatan..."
                     multiline
-                    maxLength={500}
+                    maxLength={2000}
                     value={form.deskripsi}
                     onChangeText={(val) => setForm({ ...form, deskripsi: val })}
                     showCounter
@@ -353,7 +350,7 @@ export default function CreateEventScreen() {
                 <IndustrialFormSection title="LOKASI & INSTANSI" stripeColor="#E11D48" />
 
                 <IndustrialInput
-                    placeholder="Alamat Lokasi (contoh: Gedung Sate)"
+                    placeholder="Alamat Lokasi (contoh: Taman Pandapa)"
                     value={form.lokasi}
                     onChangeText={(val) => setForm({ ...form, lokasi: val })}
                 />
@@ -441,6 +438,14 @@ export default function CreateEventScreen() {
                             <TouchableOpacity onPress={() => setDinasModalVisible(false)}>
                                 <Icon name="close" size={24} color="#64748B" />
                             </TouchableOpacity>
+                        </View>
+
+                        <View style={{ marginBottom: 16 }}>
+                            <IndustrialInput
+                                placeholder="Cari Instansi..."
+                                value={dinasSearch}
+                                onChangeText={setDinasSearch}
+                            />
                         </View>
 
                         {dinasLoading ? (

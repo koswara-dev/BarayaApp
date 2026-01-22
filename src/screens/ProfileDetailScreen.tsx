@@ -11,6 +11,7 @@ import {
     Alert,
     Platform,
     StatusBar,
+    Modal,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import ImagePicker from 'react-native-image-crop-picker';
@@ -19,6 +20,94 @@ import useAuthStore from '../stores/authStore';
 import useToastStore from '../stores/toastStore';
 import useUserStore from '../stores/userStore';
 import SkeletonShimmer from '../components/SkeletonShimmer';
+
+const SimpleEditModal = ({ visible, title, value, onChangeText, onSave, onCancel, multiline = false, loading = false }: any) => (
+    <Modal visible={visible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+                <Text style={styles.modalTitle}>{title}</Text>
+                <TextInput
+                    style={[styles.modalInput, multiline && { height: 80, textAlignVertical: 'top' }]}
+                    value={value}
+                    onChangeText={onChangeText}
+                    multiline={multiline}
+                />
+                <View style={styles.modalButtons}>
+                    <TouchableOpacity style={styles.modalBtnCancel} onPress={onCancel} disabled={loading}>
+                        <Text style={styles.modalBtnTextCancel}>Batal</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.modalBtnSave} onPress={onSave} disabled={loading}>
+                        {loading ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.modalBtnTextSave}>Simpan</Text>}
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </View>
+    </Modal>
+);
+
+const PasswordEditModal = ({ visible, onSave, onCancel, loading = false }: any) => {
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+
+    const handleSave = () => {
+        if (!currentPassword || !newPassword || !confirmPassword) {
+            Alert.alert('Error', 'Semua kolom harus diisi');
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            Alert.alert('Error', 'Konfirmasi kata sandi tidak cocok');
+            return;
+        }
+        onSave(currentPassword, newPassword);
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="fade">
+            <View style={styles.modalOverlay}>
+                <View style={styles.modalContainer}>
+                    <Text style={styles.modalTitle}>Ubah Kata Sandi</Text>
+                    
+                    <Text style={styles.inputLabel}>Kata Sandi Lama</Text>
+                    <TextInput
+                        style={styles.modalInput}
+                        value={currentPassword}
+                        onChangeText={setCurrentPassword}
+                        secureTextEntry
+                        placeholder="Masukkan kata sandi lama"
+                    />
+
+                    <Text style={styles.inputLabel}>Kata Sandi Baru</Text>
+                    <TextInput
+                        style={styles.modalInput}
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        secureTextEntry
+                        placeholder="Minimal 6 karakter"
+                    />
+
+                    <Text style={styles.inputLabel}>Konfirmasi Kata Sandi Baru</Text>
+                    <TextInput
+                        style={styles.modalInput}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        secureTextEntry
+                        placeholder="Ulangi kata sandi baru"
+                    />
+
+                    <View style={styles.modalButtons}>
+                        <TouchableOpacity style={styles.modalBtnCancel} onPress={onCancel} disabled={loading}>
+                            <Text style={styles.modalBtnTextCancel}>Batal</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.modalBtnSave} onPress={handleSave} disabled={loading}>
+                            {loading ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.modalBtnTextSave}>Simpan</Text>}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+};
 
 // Skeleton for Profile Detail Screen
 const ProfileSkeleton = () => (
@@ -81,7 +170,13 @@ export default function ProfileDetailScreen({ navigation }: any) {
         error,
         fetchUserProfile,
         uploadUserPhoto,
+        updateUserProfile,
+        changeUserPassword,
     } = useUserStore();
+
+    const [editingField, setEditingField] = useState<string | null>(null);
+    const [editValue, setEditValue] = useState('');
+    const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
 
     useEffect(() => {
         if (user?.id) {
@@ -127,17 +222,51 @@ export default function ProfileDetailScreen({ navigation }: any) {
         }
     };
 
+    // Use data strictly from profile
     const userData = profile || {
-        fullName: user?.fullName || 'Ahmad Zulkifli',
-        nik: '3208092801900001',
-        phoneNumber: '0812-3456-7890',
-        email: user?.email || 'ahmad.zul@gmail.com',
-        alamat: 'Dusun Manis, RT 001 RW 001, Desa Sangkanurip, Kec. Cigandamekar, Kab. Kuningan, Jawa Barat',
+        fullName: user?.fullName || '',
+        nik: '',
+        phoneNumber: '',
+        email: user?.email || '',
+        alamat: '',
         urlFoto: '',
-        verified: true,
-        tempatLahir: 'Kuningan',
-        tanggalLahir: '28 Januari 1990',
-        jenisKelamin: 'Laki-laki'
+        verified: false,
+    };
+
+    const handleEdit = (field: string, value: string) => {
+        setEditingField(field);
+        setEditValue(value || '');
+    };
+
+    const handleSave = async () => {
+        if (!editingField || !user?.id) return;
+
+        // Validation
+        if (editingField === 'phoneNumber') {
+            if (!editValue.startsWith('628')) {
+                showToast('Nomor telepon harus diawali 628', 'error');
+                return;
+            }
+            if (editValue.length < 10) {
+                 showToast('Nomor telepon terlalu pendek', 'error');
+                 return;
+            }
+        }
+
+        const success = await updateUserProfile(user.id, { [editingField]: editValue });
+        if (success) {
+            showToast('Data berhasil diperbarui', 'success');
+            setEditingField(null);
+        }
+    };
+
+    const handlePasswordChange = async (current: string, newPass: string) => {
+        if (!user?.id) return;
+        const success = await changeUserPassword(user.id, { current, new: newPass });
+        if (success) {
+            showToast('Kata sandi berhasil diubah', 'success');
+            setPasswordModalVisible(false);
+        }
     };
 
     return (
@@ -196,22 +325,12 @@ export default function ProfileDetailScreen({ navigation }: any) {
                             <InfoRow
                                 label="NOMOR INDUK KEPENDUDUKAN (NIK)"
                                 value={userData.nik}
-                                locked={true}
+                                onPress={() => handleEdit('nik', userData.nik)}
                             />
                             <InfoRow
                                 label="NAMA LENGKAP"
                                 value={userData.fullName}
-                                locked={true}
-                            />
-                            <InfoRow
-                                label="TEMPAT, TANGGAL LAHIR"
-                                value={`${userData.tempatLahir || 'Kuningan'}, ${userData.tanggalLahir || '28 Januari 1990'}`}
-                                locked={true}
-                            />
-                            <InfoRow
-                                label="JENIS KELAMIN"
-                                value={userData.jenisKelamin || 'Laki-laki'}
-                                locked={true}
+                                onPress={() => handleEdit('fullName', userData.fullName)}
                             />
                         </View>
 
@@ -223,30 +342,65 @@ export default function ProfileDetailScreen({ navigation }: any) {
                         <View style={styles.infoGroup}>
                             <InfoRow
                                 label="NOMOR TELEPON"
-                                value={userData.phoneNumber || '0812-3456-7890'}
-                                onPress={() => showToast("Fitur ubah nomor telepon segera hadir", "info")}
+                                value={userData.phoneNumber || '-'}
+                                onPress={() => handleEdit('phoneNumber', userData.phoneNumber)}
                             />
                             <InfoRow
                                 label="ALAMAT EMAIL"
-                                value={userData.email || 'ahmad.zul@gmail.com'}
-                                onPress={() => showToast("Fitur ubah email segera hadir", "info")}
+                                value={userData.email || '-'}
+                                onPress={() => handleEdit('email', userData.email)}
                             />
                             <InfoRow
                                 label="ALAMAT LENGKAP"
-                                value={userData.alamat || 'Alamat belum disetel'}
-                                onPress={() => showToast("Fitur ubah alamat segera hadir", "info")}
+                                value={userData.alamat || '-'}
+                                onPress={() => handleEdit('alamat', userData.alamat)}
                                 isMultiline={true}
                             />
                         </View>
 
-                        <Text style={styles.footerNote}>
-                            Data identitas (NIK, Nama, TTL, Jenis Kelamin) diambil dari data Kependudukan (Dukcapil) dan tidak dapat diubah secara langsung. Hubungi layanan Dukcapil jika terdapat kesalahan data.
-                        </Text>
+                        {/* Section: KEAMANAN */}
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitleText}>KEAMANAN</Text>
+                        </View>
+
+                        <View style={styles.infoGroup}>
+                            <TouchableOpacity style={styles.infoRow} onPress={() => setPasswordModalVisible(true)}>
+                                <View style={styles.infoTextColumn}>
+                                    <Text style={styles.infoLabel}>KATA SANDI</Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                        <Text style={styles.infoValue}>********</Text>
+                                    </View>
+                                </View>
+                                <View style={styles.actionBtn}>
+                                    <Icon name="chevron-forward" size={18} color="#94A3B8" />
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={{ height: 40 }} />
 
                         <View style={{ height: 40 }} />
                     </>
                 )}
             </ScrollView>
+
+            <SimpleEditModal
+                visible={!!editingField}
+                title={`Ubah ${editingField === 'phoneNumber' ? 'Nomor Telepon' : editingField === 'email' ? 'Email' : 'Alamat'}`}
+                value={editValue}
+                onChangeText={setEditValue}
+                onCancel={() => setEditingField(null)}
+                onSave={handleSave}
+                loading={loading}
+                multiline={editingField === 'alamat'}
+            />
+
+            <PasswordEditModal
+                visible={isPasswordModalVisible}
+                onCancel={() => setPasswordModalVisible(false)}
+                onSave={handlePasswordChange}
+                loading={loading}
+            />
         </View>
     );
 }
@@ -421,13 +575,62 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         marginLeft: 16,
     },
-    footerNote: {
-        paddingHorizontal: 24,
-        paddingVertical: 24,
-        fontSize: 12,
-        color: '#94A3B8',
-        textAlign: 'center',
-        lineHeight: 18,
-        fontWeight: '500',
+    // Modal Styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        padding: 20
     },
+    modalContainer: {
+        backgroundColor: '#FFF',
+        borderRadius: 16,
+        padding: 20
+    },
+    modalTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#0F172A',
+        marginBottom: 16
+    },
+    inputLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#64748B',
+        marginBottom: 8,
+    },
+    modalInput: {
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        borderRadius: 8,
+        padding: 12,
+        color: '#0F172A',
+        fontSize: 14,
+        marginBottom: 20
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 12
+    },
+    modalBtnCancel: {
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+    },
+    modalBtnTextCancel: {
+        color: '#64748B',
+        fontWeight: '600'
+    },
+    modalBtnSave: {
+        backgroundColor: '#FFC107',
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        minWidth: 80,
+        alignItems: 'center'
+    },
+    modalBtnTextSave: {
+        color: '#FFF',
+        fontWeight: '700'
+    }
 });

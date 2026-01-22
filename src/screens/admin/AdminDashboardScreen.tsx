@@ -8,13 +8,13 @@ import {
     Image,
     TextInput,
     StatusBar,
-    SafeAreaView,
     Dimensions,
     ActivityIndicator,
     RefreshControl,
     processColor,
     ProcessedColorValue
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import api, { getImageUrl } from '../../config/api';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
@@ -26,6 +26,8 @@ import useAuthStore from '../../stores/authStore';
 import { Role } from '../../types/auth';
 
 import useUserStore from '../../stores/userStore';
+import useDinasStore from '../../stores/dinasStore';
+import useNotificationStore from '../../stores/notificationStore';
 
 const { width } = Dimensions.get('window');
 
@@ -35,12 +37,13 @@ interface StatsResponse {
         totalDinas: number;
         totalLayanan: number;
         totalEvent: number;
-        totalNotifikasiDarurat: number;
+        totalDarurat: number;
         totalUser: number;
         top5DinasLayanan: any[];
         top5DinasFeedback: any[];
         top5DinasEvent: any[];
-        top5DinasNotifikasi: any[];
+        top5DinasDarurat: any[];
+        top5DinasPengaduan: any[];
         top5LayananFeedback: any[];
         top5LayananLeastFeedback: any[];
         feedbackPerStatus: { status: string; count: number }[];
@@ -82,10 +85,56 @@ export default function AdminDashboardScreen() {
         }
     }, [fetchStats, user?.id, fetchUserProfile]);
 
+    const [dinasName, setDinasName] = useState('Pemda Kab. Kuningan');
+    const { getDinasById } = useDinasStore();
+    const { notifications, startPolling, stopPolling } = useNotificationStore();
+    const unreadCount = notifications.filter(n => !n.read).length;
+
+    useEffect(() => {
+        startPolling();
+        return () => stopPolling();
+    }, []);
+
+    useEffect(() => {
+        const loadDinasName = async () => {
+            if (user?.role === Role.SUPERADMIN || user?.role === Role.EXECUTIVE) {
+                setDinasName('Pemda Kab. Kuningan');
+            } else if (user?.dinasId) {
+                const id = parseInt(user.dinasId, 10);
+                if (!isNaN(id)) {
+                    // Check if already loaded in store list or fetch
+                    const dinas = await getDinasById(id);
+                    if (dinas) {
+                        setDinasName(dinas.nama);
+                    }
+                }
+            }
+        };
+        loadDinasName();
+    }, [user?.dinasId, user?.role, getDinasById]);
+
     const onRefresh = useCallback(() => {
         setRefreshing(true);
         fetchStats();
     }, [fetchStats]);
+
+    // ... (rest of the code)
+
+    // In the return statement where badge is rendered:
+    // ...
+                    <TouchableOpacity
+                        style={styles.iconButton}
+                        onPress={() => navigation.navigate('Notifikasi')}
+                    >
+                        <Icon name="notifications" size={28} color="#64748B" />
+                        {unreadCount > 0 && (
+                            <View style={styles.notifBadge}>
+                                <Text style={styles.notifBadgeText}>
+                                    {unreadCount > 9 ? '9+' : unreadCount}
+                                </Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
 
     const topStats = [
         {
@@ -104,57 +153,14 @@ export default function AdminDashboardScreen() {
         },
         {
             label: 'DARURAT',
-            count: statsData?.totalNotifikasiDarurat || 0,
+            count: statsData?.totalDarurat || 0,
             badge: (statsData?.daruratPerStatus || []).find((s: any) => s.status === 'pending')?.count ? `${(statsData?.daruratPerStatus || []).find((s: any) => s.status === 'pending')?.count} New` : '--',
             color: '#EF4444',
             icon: 'alert-circle'
         },
     ];
 
-    const modules = [
-        { label: 'Verifikasi Layanan', icon: 'file-tray-full', color: '#334155', allowedRoles: [Role.SUPERADMIN, Role.ADMIN, Role.STAFF] },
-        { label: 'Kelola Pengaduan', icon: 'people-circle', color: '#334155', allowedRoles: [Role.SUPERADMIN, Role.ADMIN, Role.STAFF] },
-        { label: 'Laporan Kinerja', icon: 'stats-chart', color: '#334155', allowedRoles: [Role.SUPERADMIN, Role.ADMIN] },
-        { label: 'Pengaturan Sistem', icon: 'settings', color: '#334155', allowedRoles: [Role.SUPERADMIN] },
-    ];
 
-    const filteredModules = modules.filter(mod => {
-        if (mod.allowedRoles) {
-            return mod.allowedRoles.includes(user?.role as Role);
-        }
-        return true;
-    });
-
-
-    const tasks = [
-        {
-            id: 'REQ-2023-891',
-            type: 'SEGERA',
-            title: 'Jalan Berlubang di Jl. Siliwangi',
-            reporter: 'Budi Santoso',
-            time: '20 Menit yang lalu',
-            icon: 'alert-triangle',
-            color: '#EF4444'
-        },
-        {
-            id: 'DOC-2023-112',
-            type: 'VERIFIKASI',
-            title: 'Permohonan KTP Digital',
-            reporter: 'Siti Aminah',
-            time: '1 Jam yang lalu',
-            icon: 'person-badge',
-            color: '#F59E0B'
-        },
-        {
-            id: 'LAP-2023-004',
-            type: 'REVIEW',
-            title: 'Laporan Kinerja Bulanan',
-            reporter: 'Divisi Pelayanan Umum',
-            time: '3 Jam yang lalu',
-            icon: 'file-text',
-            color: '#3B82F6'
-        }
-    ];
 
     const getTimeGreeting = () => {
         const hour = new Date().getHours();
@@ -192,17 +198,38 @@ export default function AdminDashboardScreen() {
                             <View style={styles.roleBadge}>
                                 <Text style={styles.roleBadgeText}>{(user?.role || 'Staff').toUpperCase()}</Text>
                             </View>
-                            <Text style={styles.headerDinasText}>Dinas Kependudukan</Text>
+                            <Text style={styles.headerDinasText}>Pemda Kab. Kuningan</Text>
                         </View>
                     </View>
                 </View>
                 <View style={styles.headerRight}>
                     <TouchableOpacity
+                        style={[styles.iconButton, { marginRight: 8 }]}
+                        onPress={() => navigation.navigate('Main')}
+                    >
+                        <View style={{ 
+                            backgroundColor: '#F1F5F9', 
+                            padding: 6, 
+                            borderRadius: 8,
+                            borderWidth: 1,
+                            borderColor: '#E2E8F0'
+                        }}>
+                            <Icon name="swap-horizontal" size={20} color="#64748B" />
+                        </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
                         style={styles.iconButton}
                         onPress={() => navigation.navigate('Notifikasi')}
                     >
                         <Icon name="notifications" size={28} color="#64748B" />
-                        <View style={styles.notifBadge} />
+                        {unreadCount > 0 && (
+                            <View style={styles.notifBadge}>
+                                <Text style={styles.notifBadgeText}>
+                                    {unreadCount > 9 ? '9+' : unreadCount}
+                                </Text>
+                            </View>
+                        )}
                     </TouchableOpacity>
                 </View>
             </View>
@@ -275,64 +302,68 @@ export default function AdminDashboardScreen() {
                             </View>
                         </View>
 
-                        {/* Registration History Chart */}
-                        <View style={styles.sectionHeader}>
-                            <View style={[styles.sectionIndicator, { backgroundColor: '#10B981' }]} />
-                            <Text style={styles.sectionTitle}>Riwayat Registrasi User</Text>
-                        </View>
-                        <View style={styles.chartContainer}>
-                            <LineChart
-                                style={styles.chart}
-                                data={{
-                                    dataSets: [{
-                                        values: (statsData.userRegistrationHistory || []).slice(-7).map(h => ({ y: Number(h.count || 0) })),
-                                        label: 'Registrasi User',
-                                        config: {
-                                            lineWidth: 2,
-                                            drawCircles: true,
-                                            circleRadius: 5,
-                                            circleColor: processColor('#10B981'),
-                                            color: processColor('#10B981'),
-                                            drawFilled: true,
-                                            fillColor: processColor('#10B981'),
-                                            fillAlpha: 50,
-                                            valueTextSize: 10,
-                                            valueFormatter: "###",
-                                        }
-                                    }]
-                                }}
-                                xAxis={{
-                                    valueFormatter: statsData.userRegistrationHistory.slice(-5).map(h => h.date.split('-').slice(2).join('/')),
-                                    position: 'BOTTOM',
-                                    granularityEnabled: true,
-                                    granularity: 1,
-                                    drawGridLines: false,
-                                }}
-                                yAxis={{
-                                    left: {
-                                        drawGridLines: true,
-                                        gridColor: processColor('#F1F5F9'),
-                                        granularityEnabled: true,
-                                        granularity: 1,
-                                    },
-                                    right: {
-                                        enabled: false
-                                    }
-                                }}
-                                chartDescription={{ text: '' }}
-                                legend={{ enabled: false }}
-                                marker={{
-                                    enabled: true,
-                                    markerColor: processColor('#1E293B'),
-                                    textColor: processColor('#FFFFFF'),
-                                }}
-                                touchEnabled={true}
-                                dragEnabled={true}
-                                scaleXEnabled={true}
-                                scaleYEnabled={false}
-                                pinchZoom={true}
-                            />
-                        </View>
+                        {/* Registration History Chart - SUPERADMIN ONLY */}
+                        {(user?.role === Role.SUPERADMIN) && (
+                            <>
+                                <View style={styles.sectionHeader}>
+                                    <View style={[styles.sectionIndicator, { backgroundColor: '#10B981' }]} />
+                                    <Text style={styles.sectionTitle}>Riwayat Registrasi User</Text>
+                                </View>
+                                <View style={styles.chartContainer}>
+                                    <LineChart
+                                        style={styles.chart}
+                                        data={{
+                                            dataSets: [{
+                                                values: (statsData.userRegistrationHistory || []).slice(-7).map(h => ({ y: Number(h.count || 0) })),
+                                                label: 'Registrasi User',
+                                                config: {
+                                                    lineWidth: 2,
+                                                    drawCircles: true,
+                                                    circleRadius: 5,
+                                                    circleColor: processColor('#10B981'),
+                                                    color: processColor('#10B981'),
+                                                    drawFilled: true,
+                                                    fillColor: processColor('#10B981'),
+                                                    fillAlpha: 50,
+                                                    valueTextSize: 10,
+                                                    valueFormatter: "###",
+                                                }
+                                            }]
+                                        }}
+                                        xAxis={{
+                                            valueFormatter: statsData.userRegistrationHistory.slice(-5).map(h => h.date.split('-').slice(2).join('/')),
+                                            position: 'BOTTOM',
+                                            granularityEnabled: true,
+                                            granularity: 1,
+                                            drawGridLines: false,
+                                        }}
+                                        yAxis={{
+                                            left: {
+                                                drawGridLines: true,
+                                                gridColor: processColor('#F1F5F9'),
+                                                granularityEnabled: true,
+                                                granularity: 1,
+                                            },
+                                            right: {
+                                                enabled: false
+                                            }
+                                        }}
+                                        chartDescription={{ text: '' }}
+                                        legend={{ enabled: false }}
+                                        marker={{
+                                            enabled: true,
+                                            markerColor: processColor('#1E293B'),
+                                            textColor: processColor('#FFFFFF'),
+                                        }}
+                                        touchEnabled={true}
+                                        dragEnabled={true}
+                                        scaleXEnabled={true}
+                                        scaleYEnabled={false}
+                                        pinchZoom={true}
+                                    />
+                                </View>
+                            </>
+                        )}
 
                         {/* Status Stats (Pie Charts) */}
                         <View style={styles.sectionHeader}>
@@ -412,13 +443,41 @@ export default function AdminDashboardScreen() {
                             </View>
                         </View>
 
+
+                        {/* Top Dinas Notifications (Pengaduan) */}
+                        <View style={styles.sectionHeader}>
+                            <View style={[styles.sectionIndicator, { backgroundColor: '#F59E0B' }]} />
+                            <Text style={styles.sectionTitle}>Pengaduan Terbanyak ({(user?.role === Role.SUPERADMIN || user?.role === Role.EXECUTIVE) ? 'Semua Dinas' : 'Dinas'})</Text>
+                        </View>
+                        <View style={styles.horizontalCardContainer}>
+                            {(statsData.top5DinasPengaduan || []).map((item: any, idx: number) => (
+                                <View key={idx} style={styles.rankCard}>
+                                    <View style={[styles.rankNumberBox, { backgroundColor: '#F59E0B' }]}>
+                                        <Text style={styles.rankNumber}>{idx + 1}</Text>
+                                    </View>
+                                    <View style={styles.rankContent}>
+                                        <View style={styles.papanContainer}>
+                                            <View style={[styles.papanProgress, {
+                                                width: `${(item.count / ((statsData.top5DinasPengaduan && statsData.top5DinasPengaduan[0]?.count) || 1)) * 100}%`,
+                                                backgroundColor: '#F59E0B'
+                                            }]} />
+                                            <View style={styles.papanTextContent}>
+                                                <Text style={styles.papanLabel} numberOfLines={1}>{item.dinasNama}</Text>
+                                                <Text style={styles.papanCount}>{item.count} Laporan</Text>
+                                            </View>
+                                        </View>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+
                         {/* Top Dinas Notifications (Darurat) */}
                         <View style={styles.sectionHeader}>
                             <View style={[styles.sectionIndicator, { backgroundColor: '#EF4444' }]} />
-                            <Text style={styles.sectionTitle}>Darurat Terbanyak (Dinas)</Text>
+                            <Text style={styles.sectionTitle}>Kedaruratan Terbanyak (Dinas)</Text>
                         </View>
                         <View style={styles.horizontalCardContainer}>
-                            {(statsData.top5DinasNotifikasi || []).map((item: any, idx: number) => (
+                            {(statsData.top5DinasDarurat || []).map((item: any, idx: number) => (
                                 <View key={idx} style={styles.rankCard}>
                                     <View style={styles.rankNumberBox}>
                                         <Text style={styles.rankNumber}>{idx + 1}</Text>
@@ -426,7 +485,7 @@ export default function AdminDashboardScreen() {
                                     <View style={styles.rankContent}>
                                         <View style={styles.papanContainer}>
                                             <View style={[styles.papanProgress, {
-                                                width: `${(item.count / ((statsData.top5DinasNotifikasi && statsData.top5DinasNotifikasi[0]?.count) || 1)) * 100}%`,
+                                                width: `${(item.count / ((statsData.top5DinasDarurat && statsData.top5DinasDarurat[0]?.count) || 1)) * 100}%`,
                                                 backgroundColor: '#EF4444'
                                             }]} />
                                             <View style={styles.papanTextContent}>
@@ -442,7 +501,7 @@ export default function AdminDashboardScreen() {
                         {/* Top Dinas Services */}
                         <View style={styles.sectionHeader}>
                             <View style={[styles.sectionIndicator, { backgroundColor: '#3B82F6' }]} />
-                            <Text style={styles.sectionTitle}>Layanan Teraktif (Dinas)</Text>
+                            <Text style={styles.sectionTitle}>Layanan Terbanyak (Dinas)</Text>
                         </View>
                         <View style={styles.horizontalCardContainer}>
                             {(statsData.top5DinasLayanan || []).map((item: any, idx: number) => (
@@ -488,87 +547,30 @@ export default function AdminDashboardScreen() {
                                     }]
                                 }}
                                 xAxis={{
-                                    valueFormatter: (statsData.top5LayananFeedback || []).map(l => (l.layananNama || '').substring(0, 10) + '..'),
+                                    valueFormatter: (statsData.top5LayananFeedback || []).map((l: any) => `ID: ${l.layananId}`),
                                     position: 'BOTTOM',
                                     granularityEnabled: true,
                                     granularity: 1,
                                     drawGridLines: false,
-                                    labelRotationAngle: -45,
-                                }}
-                                yAxis={{
-                                    left: {
-                                        drawGridLines: true,
-                                        gridColor: processColor('#F1F5F9'),
-                                        granularityEnabled: true,
-                                        granularity: 1,
-                                    },
-                                    right: {
-                                        enabled: false
-                                    }
+                                    labelRotationAngle: 0,
                                 }}
                                 chartDescription={{ text: '' }}
                                 legend={{ enabled: false }}
                             />
                         </View>
+                        {/* Custom Legend for Bar Chart */}
+                        <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+                             {(statsData.top5LayananFeedback || []).map((l: any, idx: number) => (
+                                 <View key={idx} style={{ flexDirection: 'row', marginBottom: 4 }}>
+                                     <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#1E293B', width: 50 }}>ID: {l.layananId}</Text>
+                                     <Text style={{ fontSize: 11, color: '#64748B', flex: 1 }}>: {l.layananNama}</Text>
+                                 </View>
+                             ))}
+                        </View>
                     </>
                 )}
 
-                {/* Modules Section */}
-                <View style={styles.sectionHeader}>
-                    <View style={styles.sectionIndicator} />
-                    <Text style={styles.sectionTitle}>Modul Internal</Text>
-                    <TouchableOpacity style={styles.filterBtn}>
-                        <Icon name="options-outline" size={16} color="#64748B" />
-                        <Text style={styles.filterBtnText}>Atur</Text>
-                    </TouchableOpacity>
-                </View>
 
-                <View style={styles.modulesGrid}>
-                    {filteredModules.map((mod, idx) => (
-                        <TouchableOpacity key={idx} style={styles.moduleItem}>
-                            <View style={styles.moduleIconBox}>
-                                <Icon name={mod.icon} size={24} color="#334155" />
-                            </View>
-                            <Text style={styles.moduleLabel}>{mod.label}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
-                {/* Tasks Section */}
-                <View style={styles.sectionHeader}>
-                    <View style={[styles.sectionIndicator, { backgroundColor: '#EF4444' }]} />
-                    <Text style={styles.sectionTitle}>Perlu Tindak Lanjut</Text>
-                    <Icon name="filter-outline" size={20} color="#64748B" />
-                </View>
-
-                <View style={styles.filterRow}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                        {['Semua', 'Mendesak', 'Verifikasi', 'Laporan'].map((f, i) => (
-                            <TouchableOpacity key={i} style={[styles.filterChip, i === 0 && styles.filterChipActive]}>
-                                <Text style={[styles.filterChipText, i === 0 && styles.filterChipTextActive]}>{f}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
-
-                <View style={styles.taskList}>
-                    {tasks.map((task) => (
-                        <TouchableOpacity key={task.id} style={styles.taskCard}>
-                            <View style={[styles.taskIndicator, { backgroundColor: task.color }]} />
-                            <View style={[styles.taskIconBox, { backgroundColor: task.color + '10' }]}>
-                                <Icon name={task.icon === 'person-badge' ? 'person' : task.icon === 'file-text' ? 'document-text' : 'alert-circle'} size={24} color={task.color} />
-                            </View>
-                            <View style={styles.taskContent}>
-                                <View style={styles.taskHeader}>
-                                    <Text style={styles.taskId}>#{task.id} • <Text style={{ color: task.color }}>{task.type}</Text></Text>
-                                    <Icon name="ellipsis-vertical" size={16} color="#CBD5E1" />
-                                </View>
-                                <Text style={styles.taskTitle}>{task.title}</Text>
-                                <Text style={styles.taskFooter}>Pelapor: {task.reporter} • {task.time}</Text>
-                            </View>
-                        </TouchableOpacity>
-                    ))}
-                </View>
 
                 <View style={{ height: 100 }} />
             </ScrollView>
@@ -650,17 +652,27 @@ const styles = StyleSheet.create({
     iconButton: {
         marginRight: 16,
         position: 'relative',
+        marginBottom: 12
     },
     notifBadge: {
         position: 'absolute',
-        top: 0,
-        right: 0,
-        width: 8,
-        height: 8,
-        borderRadius: 4,
+        top: -4,
+        right: -4,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
         backgroundColor: '#EF4444',
-        borderWidth: 1,
+        borderWidth: 2,
         borderColor: '#FFFFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+    },
+    notifBadgeText: {
+        fontSize: 9,
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        textAlign: 'center',
     },
     container: {
         flex: 1,
@@ -750,134 +762,7 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         color: '#1E293B',
     },
-    filterBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#F1F5F9',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 4,
-    },
-    filterBtnText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#64748B',
-        marginLeft: 4,
-    },
-    modulesGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        paddingHorizontal: 15,
-        marginBottom: 32,
-    },
-    moduleItem: {
-        width: (width - 30) / 4,
-        alignItems: 'center',
-        padding: 5,
-    },
-    moduleIconBox: {
-        width: 56,
-        height: 56,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#F1F5F9',
-        marginBottom: 8,
-        // Small shadow
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
-    },
-    moduleLabel: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#64748B',
-        textAlign: 'center',
-        lineHeight: 14,
-    },
-    filterRow: {
-        paddingLeft: 20,
-        marginBottom: 16,
-    },
-    filterChip: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 6,
-        backgroundColor: '#FFFFFF',
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        marginRight: 8,
-    },
-    filterChipActive: {
-        backgroundColor: '#0F172A',
-        borderColor: '#0F172A',
-    },
-    filterChipText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#64748B',
-    },
-    filterChipTextActive: {
-        color: '#FFFFFF',
-    },
-    taskList: {
-        paddingHorizontal: 20,
-    },
-    taskCard: {
-        flexDirection: 'row',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#F1F5F9',
-        position: 'relative',
-        overflow: 'hidden',
-    },
-    taskIndicator: {
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: 4,
-    },
-    taskIconBox: {
-        width: 48,
-        height: 48,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 16,
-    },
-    taskContent: {
-        flex: 1,
-    },
-    taskHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
-    taskId: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#94A3B8',
-    },
-    taskTitle: {
-        fontSize: 16,
-        fontWeight: '900',
-        color: '#1E293B',
-        marginBottom: 4,
-    },
-    taskFooter: {
-        fontSize: 12,
-        color: '#94A3B8',
-        fontWeight: '500',
-    },
+
     // New Statistics Styles
     horizontalCardContainer: {
         paddingHorizontal: 20,

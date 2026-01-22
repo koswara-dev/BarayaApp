@@ -13,21 +13,24 @@ import {
     KeyboardAvoidingView,
     Image,
     Animated,
+    TextInput,
 } from 'react-native';
+import { useDebounce } from 'use-debounce';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import usePengaduanStore from '../stores/pengaduanStore';
-import useLayananStore from '../stores/layananStore';
+import useDinasStore from '../stores/dinasStore';
 import useToastStore from '../stores/toastStore';
 import LoadingOverlay from '../components/LoadingOverlay';
 import IndustrialFormSection from '../components/Form/IndustrialFormSection';
 import IndustrialInput from '../components/Form/IndustrialInput';
 import IndustrialImagePicker from '../components/Form/IndustrialImagePicker';
+import { containsBadWords } from '../utils/badWords';
 
 export default function CreatePengaduanScreen() {
     const navigation = useNavigation<any>();
     const { createPengaduan, loading: storeLoading } = usePengaduanStore();
-    const { dinas, fetchDinas, loading: dinasLoading } = useLayananStore();
+    const { dinasList: dinas, fetchDinas, loading: dinasLoading } = useDinasStore();
     const showToast = useToastStore((state) => state.showToast);
 
     // Form State
@@ -37,6 +40,10 @@ export default function CreatePengaduanScreen() {
         dinasNama: '',
     });
     const [photo, setPhoto] = useState<any>(null);
+
+    // Search State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch] = useDebounce(searchQuery, 500);
 
     // Modal State
     const [dinasModalVisible, setDinasModalVisible] = useState(false);
@@ -63,13 +70,20 @@ export default function CreatePengaduanScreen() {
     }, [confirmModalVisible]);
 
     useEffect(() => {
-        fetchDinas();
-    }, []);
+        // Fetch dinas when search query changes (debounced)
+        fetchDinas(0, 50, debouncedSearch);
+    }, [debouncedSearch]);
 
     const handleSave = () => {
         // Validation
-        if (!form.pesan || !form.dinasId) {
-            showToast('Mohon lengkapi detail pengaduan dan dinas terkait.', 'error');
+        if (!form.pesan || !form.dinasId || !photo) {
+            showToast('Mohon lengkapi detail pengaduan, pilih dinas, dan sertakan foto bukti.', 'error');
+            return;
+        }
+
+        // Check for bad words
+        if (containsBadWords(form.pesan)) {
+            showToast('Pesan mengandung kata-kata yang tidak pantas. Mohon gunakan bahasa yang sopan.', 'error');
             return;
         }
 
@@ -137,7 +151,7 @@ export default function CreatePengaduanScreen() {
                     value={form.pesan}
                     onChangeText={(val) => setForm({ ...form, pesan: val })}
                     showCounter
-                    style={{ minHeight: 120, textAlignVertical: 'top' }}
+                    style={{ minHeight: 120, textAlignVertical: 'top', marginTop: 16 }}
                 />
 
                 <View style={{ height: 12 }} />
@@ -156,12 +170,13 @@ export default function CreatePengaduanScreen() {
                 </TouchableOpacity>
 
                 {/* 2. Lampiran */}
-                <IndustrialFormSection title="BUKTI FOTO (OPSIONAL)" stripeColor="#64748B" />
+                <IndustrialFormSection title="BUKTI FOTO (WAJIB)" stripeColor="#64748B" />
 
                 <IndustrialImagePicker
                     photo={photo}
                     onPhotoSelected={setPhoto}
                     onPhotoRemoved={() => setPhoto(null)}
+                    cameraOnly={true}
                 />
 
                 <View style={styles.footer}>
@@ -204,6 +219,32 @@ export default function CreatePengaduanScreen() {
                             </TouchableOpacity>
                         </View>
 
+                         {/* Search Input */}
+                         <View style={{ 
+                            flexDirection: 'row', 
+                            alignItems: 'center', 
+                            backgroundColor: '#F1F5F9', 
+                            paddingHorizontal: 12, 
+                            borderRadius: 8,
+                            marginBottom: 16,
+                            height: 48
+                        }}>
+                            <Icon name="search" size={20} color="#94A3B8" />
+                            <TextInput
+                                style={{ flex: 1, marginLeft: 8, color: '#0F172A', fontSize: 14 }}
+                                placeholder="Cari nama dinas..."
+                                placeholderTextColor="#94A3B8"
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                                autoCapitalize="none"
+                            />
+                            {searchQuery.length > 0 && (
+                                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                    <Icon name="close-circle" size={18} color="#94A3B8" />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
                         {dinasLoading ? (
                             <ActivityIndicator size="large" color="#EF4444" style={{ marginVertical: 40 }} />
                         ) : (
@@ -219,6 +260,11 @@ export default function CreatePengaduanScreen() {
                                     </TouchableOpacity>
                                 )}
                                 style={{ maxHeight: 400 }}
+                                ListEmptyComponent={
+                                    <View style={{ padding: 20, alignItems: 'center' }}>
+                                        <Text style={{ color: '#94A3B8' }}>Dinas tidak ditemukan</Text>
+                                    </View>
+                                }
                             />
                         )}
                     </Animated.View>

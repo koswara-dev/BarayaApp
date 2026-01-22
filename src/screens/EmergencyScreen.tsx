@@ -16,7 +16,9 @@ import { playEmergencySound } from '../utils/soundPlayer';
 import useLayananStore from '../stores/layananStore';
 import useUserStore from '../stores/userStore';
 import LoadingOverlay from '../components/LoadingOverlay';
-import { LogBox } from 'react-native';
+import { useDebounce } from 'use-debounce';
+import useCamatStore from '../stores/camatStore';
+import { LogBox, FlatList } from 'react-native';
 import IndustrialFormSection from '../components/Form/IndustrialFormSection';
 import IndustrialInput from '../components/Form/IndustrialInput';
 import IndustrialLocationCard from '../components/Form/IndustrialLocationCard';
@@ -32,10 +34,10 @@ LogBox.ignoreLogs([
 ]);
 
 const EMERGENCY_TYPES = [
-    { key: 'DAMKAR', label: 'DAMKAR', icon: 'flame-outline', searchKeywords: ['DAMKAR', 'PEMADAM', 'KEBAKARAN'] },
-    { key: 'AMBULANCE', label: 'AMBULANCE', icon: 'medical-outline', searchKeywords: ['AMBULANS', 'RSU', 'KESEHATAN'] },
-    { key: 'BENCANA', label: 'BENCANA', icon: 'warning-outline', searchKeywords: ['BPBD', 'BENCANA', 'BANJIR'] },
-    { key: 'POLISI', label: 'POLISI', icon: 'shield-checkmark-outline', searchKeywords: ['POLISI', 'KEPOLISIAN', 'KEAMANAN'] },
+    { key: 'DAMKAR', label: 'DAMKAR', icon: 'flame-outline', dinasId: 3 },
+    { key: 'AMBULANCE', label: 'AMBULANCE', icon: 'medical-outline', dinasId: 9 },
+    { key: 'BENCANA', label: 'BENCANA', icon: 'warning-outline', dinasId: 3 },
+    { key: 'POLISI', label: 'POLISI', icon: 'shield-checkmark-outline', dinasId: 99 },
 ];
 
 export default function EmergencyScreen() {
@@ -64,6 +66,14 @@ export default function EmergencyScreen() {
     const [photo, setPhoto] = useState<any>(null);
     const [selectedDinas, setSelectedDinas] = useState<any>(null);
     const [refreshing, setRefreshing] = useState(false);
+    
+    // Kecamatan State
+    const { kecamatanList, fetchKecamatan, loading: loadingKecamatan } = useCamatStore();
+    const [kecamatanModalVisible, setKecamatanModalVisible] = useState(false);
+    const [kecamatanSearchQuery, setKecamatanSearchQuery] = useState('');
+    const [debouncedKecamatanSearch] = useDebounce(kecamatanSearchQuery, 500);
+    const [selectedKecamatan, setSelectedKecamatan] = useState<any>(null);
+    const [slideAnimKecamatan] = useState(new Animated.Value(400));
     const [showCompleteModal, setShowCompleteModal] = useState(false);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [showLocModal, setShowLocModal] = useState(false);
@@ -74,10 +84,21 @@ export default function EmergencyScreen() {
     // Map static emergency types to real backend dinas data
     const mappedEmergencyOptions = React.useMemo(() => {
         return EMERGENCY_TYPES.map(type => {
-            // Find matching dinas from API list based on keywords
-            const matchedDinas = dinasList.find(d =>
-                type.searchKeywords.some(keyword => d.nama.toUpperCase().includes(keyword))
-            );
+            // Find matching dinas from API list based on dinasId
+            const matchedDinas = dinasList.find(d => d.id === type.dinasId);
+
+            // Fallback for POLISI if not found in list (ensure it's available)
+            if (type.key === 'POLISI' && !matchedDinas) {
+                 return {
+                    ...type,
+                    backendDinas: {
+                        id: type.dinasId,
+                        nama: 'KEPOLISIAN RESORT (POLRES)',
+                        deskripsi: 'Layanan Darurat Kepolisian',
+                    }
+                };
+            }
+
             return {
                 ...type,
                 backendDinas: matchedDinas // This contains id, nama, etc. from backend
@@ -95,6 +116,18 @@ export default function EmergencyScreen() {
         // Inisialisasi channel notifikasi
         notificationHelper.createChannels();
     }, [user?.id]);
+
+    useEffect(() => {
+        if (kecamatanModalVisible) {
+            Animated.timing(slideAnimKecamatan, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+        } else {
+            slideAnimKecamatan.setValue(400);
+        }
+    }, [kecamatanModalVisible]);
+
+    useEffect(() => {
+        fetchKecamatan(0, 50, debouncedKecamatanSearch);
+    }, [debouncedKecamatanSearch]);
 
     useEffect(() => {
         if (!activeReport) {
@@ -210,7 +243,10 @@ export default function EmergencyScreen() {
     };
 
     const handleConfirmSubmit = () => {
-        if (!message.trim() || !selectedDinas) return;
+        if (!message.trim() || !selectedDinas || !photo) {
+            if (!photo) showToast("Mohon sertakan foto kejadian", "error");
+            return;
+        };
         setShowConfirmModal(true);
     };
 
@@ -235,6 +271,7 @@ export default function EmergencyScreen() {
                 pesan: message,
                 dinasId: selectedDinas?.id,
                 dinasNama: selectedDinas?.nama,
+                kecamatanId: selectedKecamatan?.id,
                 foto: photo
             };
 
@@ -327,7 +364,7 @@ export default function EmergencyScreen() {
     };
 
     // --- RENDER ACTIVE REPORT WITH TRACKING ---
-    if (activeReport) {
+    if (activeReport && activeReport.status !== 'selesai' && activeReport.status !== 'dibatalkan') {
         const trackingSteps = getTrackingSteps();
         const statusColors = getStatusBadgeColor(activeReport.status);
 
@@ -546,28 +583,7 @@ export default function EmergencyScreen() {
                         )}
                     </View>
 
-                    {/* Contact Officer Action */}
-                    <View style={styles.actionSectionOuter}>
-                        <TouchableOpacity
-                            style={styles.hubungiPetugasBtn}
-                            onPress={() => Alert.alert('Hubungi Petugas', 'Menghubungi petugas dinas terkait...')}
-                        >
-                            <View style={styles.hubungiPetugasInner}>
-                                <Icon name="call" size={20} color="#FFF" />
-                                <Text style={styles.hubungiPetugasText}>HUBUNGI PETUGAS</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
 
-                    {/* Complete Action */}
-                    <TouchableOpacity style={styles.completeBtnFlat} onPress={handleCompleteReport}>
-                        <Icon name="checkbox" size={20} color="#FFF" />
-                        <Text style={styles.completeBtnTextFlat}>LAPORAN SELESAI / TERATASI</Text>
-                    </TouchableOpacity>
-
-                    <Text style={styles.completeHintFlat}>
-                        Gunakan tombol di atas jika situasi sudah kondusif untuk menutup laporan ini.
-                    </Text>
 
                     <View style={{ height: 40 }} />
                 </ScrollView>
@@ -706,6 +722,22 @@ export default function EmergencyScreen() {
                     })}
                 />
 
+
+
+                <TouchableOpacity
+                    style={styles.dropdown}
+                    onPress={() => setKecamatanModalVisible(true)}
+                >
+                    <View style={styles.dropdownInner}>
+                        <Icon name="map" size={20} color="#94A3B8" />
+                        <Text style={[styles.dropdownText, !selectedKecamatan && styles.placeholderText]}>
+                            {selectedKecamatan ? selectedKecamatan.kecamatan : "Pilih Kecamatan Lokasi"}
+                        </Text>
+                    </View>
+                    <Icon name="chevron-down" size={20} color="#94A3B8" />
+                </TouchableOpacity>
+                <View style={{height: 16}} />
+
                 <TouchableOpacity
                     style={styles.locateBtnEmergency}
                     onPress={requestLocation}
@@ -772,19 +804,20 @@ export default function EmergencyScreen() {
                 />
 
                 {/* Photo Section */}
-                <IndustrialFormSection title="FOTO KEJADIAN (OPSIONAL)" stripeColor="#64748B" />
+                <IndustrialFormSection title="FOTO KEJADIAN (WAJIB)" stripeColor="#64748B" />
 
                 <IndustrialImagePicker
                     photo={photo}
                     onPhotoSelected={setPhoto}
                     onPhotoRemoved={removePhoto}
+                    cameraOnly={true}
                 />
 
                 {/* SOS Button */}
                 <TouchableOpacity
-                    style={[styles.sosBtn, (!selectedDinas || !message.trim() || loading) && styles.sosDisabled]}
+                    style={[styles.sosBtn, (!selectedDinas || !message.trim() || !photo || loading) && styles.sosDisabled]}
                     onPress={handleConfirmSubmit}
-                    disabled={!selectedDinas || !message.trim() || loading}
+                    disabled={!selectedDinas || !message.trim() || !photo || loading}
                 >
                     {loading ? (
                         <ActivityIndicator color="#FFF" />
@@ -848,6 +881,83 @@ export default function EmergencyScreen() {
                             <Text style={styles.confirmSubmitBtnText}>LIHAT STATUS LAPORAN</Text>
                         </TouchableOpacity>
                     </View>
+                </View>
+
+            </Modal>
+
+            {/* Kecamatan Modal */}
+            <Modal
+                visible={kecamatanModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setKecamatanModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <Animated.View
+                        style={[
+                            styles.modalContent,
+                            { transform: [{ translateY: slideAnimKecamatan }] }
+                        ]}
+                    >
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>PILIH KECAMATAN</Text>
+                            <TouchableOpacity onPress={() => setKecamatanModalVisible(false)}>
+                                <Icon name="close" size={24} color="#64748B" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Search Input */}
+                        <View style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: '#F1F5F9',
+                            paddingHorizontal: 12,
+                            borderRadius: 8,
+                            marginBottom: 16,
+                            height: 48
+                        }}>
+                            <Icon name="search" size={20} color="#94A3B8" />
+                            <TextInput
+                                style={{ flex: 1, marginLeft: 8, color: '#0F172A', fontSize: 14 }}
+                                placeholder="Cari nama kecamatan..."
+                                placeholderTextColor="#94A3B8"
+                                value={kecamatanSearchQuery}
+                                onChangeText={setKecamatanSearchQuery}
+                                autoCapitalize="none"
+                            />
+                            {kecamatanSearchQuery.length > 0 && (
+                                <TouchableOpacity onPress={() => setKecamatanSearchQuery('')}>
+                                    <Icon name="close-circle" size={18} color="#94A3B8" />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        {loadingKecamatan ? (
+                            <ActivityIndicator size="large" color="#EF4444" style={{ marginVertical: 40 }} />
+                        ) : (
+                            <FlatList
+                                data={kecamatanList}
+                                keyExtractor={(item) => String(item.id)}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity
+                                        style={styles.dinasItem}
+                                        onPress={() => {
+                                            setSelectedKecamatan(item);
+                                            setKecamatanModalVisible(false);
+                                        }}
+                                    >
+                                        <Text style={styles.dinasItemText}>{item.kecamatan}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                style={{ maxHeight: 400 }}
+                                ListEmptyComponent={
+                                    <View style={{ padding: 20, alignItems: 'center' }}>
+                                        <Text style={{ color: '#94A3B8' }}>Kecamatan tidak ditemukan</Text>
+                                    </View>
+                                }
+                            />
+                        )}
+                    </Animated.View>
                 </View>
             </Modal>
 
@@ -1604,8 +1714,72 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 12,
+    },
+    // Utils styles copied from CreatePengaduanScreen
+    dropdown: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        minHeight: 52,
+        marginHorizontal: 16,
+        marginTop: 12,
+    },
+    dropdownInner: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginRight: 8,
+    },
+    dropdownText: {
+        flex: 1,
+        fontSize: 14,
+        color: '#0F172A',
+        fontWeight: '700',
+    },
+    placeholderText: {
+        color: '#94A3B8',
+        fontWeight: '500',
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(15, 23, 42, 0.8)',
+        justifyContent: 'flex-end',
+    },
+    modalContent: {
+        backgroundColor: '#FFFFFF',
+        padding: 24,
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: 20,
     },
+    modalTitle: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: '#0F172A',
+        letterSpacing: 1,
+    },
+    dinasItem: {
+        paddingVertical: 18,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    dinasItemText: {
+        fontSize: 14,
+        color: '#334155',
+        fontWeight: '700',
+    },
+
     actionBtnCancel: {
         width: '100%',
         paddingVertical: 12,

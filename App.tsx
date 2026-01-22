@@ -15,6 +15,7 @@ import useNotificationStore from './src/stores/notificationStore';
 import useEmergencyStore from './src/stores/emergencyStore';
 import GlobalEmergencyModal from './src/components/GlobalEmergencyModal';
 import notifee, { EventType } from '@notifee/react-native';
+import { notificationHelper } from './src/utils/notificationHelper';
 import { navigate } from './src/navigation/navigationRef';
 
 
@@ -42,6 +43,29 @@ function App() {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  // Setup FCM (Permission + Token + Foreground Listener)
+  useEffect(() => {
+      let unsubscribeFCM: (() => void) | undefined;
+
+      const setupFCM = async () => {
+          const hasPermission = await notificationHelper.requestUserPermission();
+          if (hasPermission) {
+              await notificationHelper.getFCMToken();
+              await notificationHelper.subscribeToTopics();
+              unsubscribeFCM = notificationHelper.setupFCMListener();
+          }
+      };
+
+
+      setupFCM();
+
+      return () => {
+          if (unsubscribeFCM) {
+              unsubscribeFCM();
+          }
+      };
+  }, []);
 
   // Handle notification foreground events
   useEffect(() => {

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, Modal, TouchableOpacity, Image, StatusBar, Platform, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Modal, TouchableOpacity, Image, StatusBar, Platform, Alert, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import useUserStore from '../stores/userStore';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -27,9 +27,15 @@ export default function ProfileScreen({ navigation }: any) {
                 timeout: 10000,
             });
 
-            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.latitude}&lon=${location.longitude}`);
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.latitude}&lon=${location.longitude}`, {
+                headers: {
+                    'User-Agent': 'BarayaApp/1.0.0'
+                }
+            });
             const data = await response.json();
-            const city = data.address.city || data.address.town || data.address.village || data.address.county || 'Lokasi Aktif';
+            // Try to find city, then town, then village, then county
+            const city = data.address.city || data.address.town || data.address.village || data.address.county || 'LOKASI TERDETEKSI';
+            
             setCurrentCity(city.toUpperCase());
         } catch (error) {
             console.log('Location error:', error);
@@ -88,6 +94,12 @@ export default function ProfileScreen({ navigation }: any) {
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                 }
             >
+                {loading && !refreshing ? (
+                     <View style={{ padding: 20 }}>
+                        <ActivityIndicator size="large" color="#FFC107" />
+                     </View>
+                ) : (
+                <>
                 {/* Profile Top Section */}
                 <View style={styles.profileSection}>
                     <View style={styles.avatarContainer}>
@@ -106,13 +118,15 @@ export default function ProfileScreen({ navigation }: any) {
                     </View>
 
                     <Text style={styles.userName}>{profile?.fullName || user?.fullName || "User"}</Text>
-                    <Text style={styles.userNik}>NIK: {profile?.nik || "3208092801900001"}</Text>
+                    <Text style={styles.userNik}>NIK: {profile?.nik || "-"}</Text>
 
                     <View style={styles.badgeRow}>
-                        <View style={styles.verifiedBadge}>
-                            <Icon name="checkmark-circle" size={14} color="#10B981" />
-                            <Text style={styles.verifiedText}>TERVERIFIKASI</Text>
-                        </View>
+                        {profile?.verified && (
+                            <View style={styles.verifiedBadge}>
+                                <Icon name="checkmark-circle" size={14} color="#10B981" />
+                                <Text style={styles.verifiedText}>TERVERIFIKASI</Text>
+                            </View>
+                        )}
                         <View style={styles.locationBadge}>
                             <Icon name="location-sharp" size={14} color="#3B82F6" />
                             <Text style={styles.locationText}>{currentCity}</Text>
@@ -125,7 +139,7 @@ export default function ProfileScreen({ navigation }: any) {
                     <Text style={styles.sectionTitle}>AKTIVITAS SAYA</Text>
                 </View>
                 <View style={styles.menuBox}>
-                    <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('ServiceHistory')}>
+                    <TouchableOpacity style={styles.menuItem} onPress={() => showToast("Fitur dalam tahap pengembangan", "info")}>
                         <View style={[styles.menuIconBox, { backgroundColor: '#EFF6FF' }]}>
                             <Icon name="document-text" size={20} color="#3B82F6" />
                         </View>
@@ -188,9 +202,11 @@ export default function ProfileScreen({ navigation }: any) {
                     </TouchableOpacity>
                 </View>
 
-                <Text style={styles.versionText}>Versi Aplikasi 2.4.1 (Build 2024)</Text>
+                <Text style={styles.versionText}>Versi Aplikasi 1.0.0 (Build 2026.01)</Text>
 
                 <View style={{ height: 40 }} />
+                </>
+                )}
             </ScrollView>
 
             <ConfirmModal

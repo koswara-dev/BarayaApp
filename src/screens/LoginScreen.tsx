@@ -12,6 +12,7 @@ import {
     Image,
 } from "react-native";
 import Icon from 'react-native-vector-icons/Ionicons';
+import { API_BASE_URL } from "../config/api";
 import useToastStore from "../stores/toastStore";
 import useAuthActions from "../hooks/useAuthActions";
 import useAuthStore from "../stores/authStore";
@@ -177,7 +178,11 @@ export default function LoginScreen({ navigation }: any) {
                     {/* Google Login */}
                     <TouchableOpacity
                         style={styles.googleBtn}
-                        onPress={() => showToast("Fitur Google Sign-In akan segera hadir", "info")}
+                        onPress={() => navigation.navigate('Webview', { 
+                            url: `${API_BASE_URL}/auth/google`, 
+                            title: 'Login Google',
+                            isAuth: true
+                        })}
                     >
                         <Image
                             source={{ uri: 'https://img.icons8.com/?size=100&id=17949&format=png&color=000000' }}

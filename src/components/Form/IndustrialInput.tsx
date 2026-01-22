@@ -5,6 +5,7 @@ interface IndustrialInputProps extends TextInputProps {
     maxLength?: number;
     value: string;
     showCounter?: boolean;
+    height?: number;
 }
 
 export default function IndustrialInput({
@@ -13,11 +14,16 @@ export default function IndustrialInput({
     showCounter,
     multiline,
     style,
+    height,
     ...props
 }: IndustrialInputProps) {
     return (
         <View style={styles.container}>
-            <View style={[styles.inputBox, multiline && styles.inputBoxMulti]}>
+            <View style={[
+                styles.inputBox, 
+                multiline && styles.inputBoxMulti,
+                height ? { height } : undefined
+            ]}>
                 <TextInput
                     style={[styles.textInput, multiline && styles.textInputMulti, style]}
                     multiline={multiline}

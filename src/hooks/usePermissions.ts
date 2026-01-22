@@ -35,6 +35,7 @@ export const usePermissions = () => {
 
         // Specific role checks
         isSuperAdmin: role === Role.SUPERADMIN,
+        isExecutive: role === Role.EXECUTIVE,
         isAdmin: role === Role.ADMIN,
         isStaff: role === Role.STAFF,
         isUser: role === Role.USER,

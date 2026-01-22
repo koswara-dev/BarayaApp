@@ -1,5 +1,6 @@
 import notifee, { AndroidImportance, AndroidVisibility, AndroidStyle } from '@notifee/react-native';
 import { Platform } from 'react-native';
+import { getMessaging, AuthorizationStatus, getToken, requestPermission, subscribeToTopic, onMessage } from '@react-native-firebase/messaging';
 
 class NotificationHelper {
     // Inisialisasi channel untuk Android
@@ -7,7 +8,7 @@ class NotificationHelper {
         if (Platform.OS === 'android') {
             // Channel untuk Keadaan Darurat (Prioritas Sangat Tinggi)
             await notifee.createChannel({
-                id: 'emergency',
+                id: 'darurat',
                 name: 'Layanan Darurat',
                 lights: true,
                 vibration: true,
@@ -21,16 +22,147 @@ class NotificationHelper {
             await notifee.createChannel({
                 id: 'default',
                 name: 'Informasi Umum',
-                importance: AndroidImportance.HIGH, // Changed to HIGH to ensure popup
+                importance: AndroidImportance.HIGH, 
                 visibility: AndroidVisibility.PUBLIC,
+                sound: 'app_default',
             });
+
+            // Channel untuk Event
+            await notifee.createChannel({
+                id: 'event',
+                name: 'Event & Agenda',
+                importance: AndroidImportance.HIGH,
+                visibility: AndroidVisibility.PUBLIC,
+                description: 'Notifikasi update event dan agenda terkini',
+                sound: 'app_default',
+            });
+
+            // Channel untuk Pengaduan
+            await notifee.createChannel({
+                id: 'pengaduan',
+                name: 'Update Pengaduan',
+                importance: AndroidImportance.HIGH,
+                visibility: AndroidVisibility.PUBLIC,
+                description: 'Notifikasi perkembangan status pengaduan Anda',
+                sound: 'app_default',
+            });
+
+            // Channel untuk Berita
+            await notifee.createChannel({
+                id: 'berita',
+                name: 'Berita Terkini',
+                importance: AndroidImportance.HIGH,
+                visibility: AndroidVisibility.PUBLIC,
+                description: 'Notifikasi berita terkini dan pengumuman',
+                sound: 'app_default',
+            });
+
+            // Channel untuk Samsat
+            await notifee.createChannel({
+                id: 'samsat',
+                name: 'Info Samsat',
+                importance: AndroidImportance.HIGH,
+                visibility: AndroidVisibility.PUBLIC,
+                description: 'Notifikasi informasi dan layanan Samsat',
+                sound: 'app_default',
+            });
+        }
+        
+        // Request Permissions and Get Token for debugging
+        await this.requestUserPermission();
+        await this.getFCMToken();
+    }
+
+    // Meminta izin notifikasi (FCM + Notifee)
+    async requestUserPermission() {
+        const messaging = getMessaging();
+        const authStatus = await requestPermission(messaging);
+        const enabled =
+            authStatus === AuthorizationStatus.AUTHORIZED ||
+            authStatus === AuthorizationStatus.PROVISIONAL;
+
+        if (enabled) {
+            console.log('Authorization status:', authStatus);
+        }
+        
+        // Juga minta izin native (Android 13+)
+        if (Platform.OS === 'android') {
+             await notifee.requestPermission();
+        }
+        
+        return enabled;
+    }
+
+    // Mendapatkan FCM Token
+    async getFCMToken() {
+        try {
+            const messaging = getMessaging();
+            const token = await getToken(messaging);
+            console.log('FCM Token:', token);
+            return token;
+        } catch (error) {
+            console.error("FCM Token Error", error);
+            return null;
         }
     }
 
+    // Subscribe ke topic (Darurat, Event, Pengaduan)
+    async subscribeToTopics() {
+        try {
+            const messaging = getMessaging();
+            // await subscribeToTopic(messaging, 'darurat');
+            // await subscribeToTopic(messaging, 'pengaduan');
+            await subscribeToTopic(messaging, 'event');
+            await subscribeToTopic(messaging, 'berita');
+            await subscribeToTopic(messaging, 'samsat');
+            console.log('Subscribed to topics: event, berita, samsat');
+        } catch (error) {
+            console.error('Failed to subscribe to topics:', error);
+        }
+    }
+
+
+    // Setup listener untuk pesan saat aplikasi di foreground
+    setupFCMListener() {
+        const messaging = getMessaging();
+         return onMessage(messaging, async remoteMessage => {
+            console.log('A new FCM message arrived!', remoteMessage);
+            
+            // Mapping FCM ke format notifikasi kita
+            const title = remoteMessage.notification?.title || (remoteMessage.data?.title ? String(remoteMessage.data.title) : 'Notification');
+            const body = remoteMessage.notification?.body || (remoteMessage.data?.body ? String(remoteMessage.data.body) : '');
+            const data = remoteMessage.data;
+            
+            // Determine channel based on data.category or data.type
+            const category = data?.category || data?.type || 'default'; 
+            let channelId: any = 'default';
+            
+            if (category === 'DARURAT' || category === 'darurat') {
+                 channelId = 'darurat';
+            } else if (category === 'SAMSAT') {
+                 channelId = 'samsat';
+            } else if (category === 'EVENT') {
+                 channelId = 'event';
+            } else if (category === 'PENGADUAN' || category === 'pengaduan') {
+                 channelId = 'pengaduan';
+            } else if (category === 'BERITA') {
+                 channelId = 'berita';
+            }
+            
+            // Tampilkan notifikasi menggunakan Notifee agar konsisten
+            await this.displayNotification(title, body, channelId, data);
+        });
+    }
+
     // Menampilkan notifikasi lokal
-    async displayNotification(title: string, body: string, channelId: 'emergency' | 'default' = 'default', data?: any) {
+    async displayNotification(title: string, body: string, channelId: 'darurat' | 'default' = 'default', data?: any) {
         // Minta izin (untuk Android 13+)
         await notifee.requestPermission();
+        try {
+            await requestPermission(getMessaging());
+        } catch (e) {
+            console.log('FCM permission check failed', e);
+        }
 
         // Truncate body if too long for initial view
         const maxLength = 60;
@@ -38,23 +170,45 @@ class NotificationHelper {
             ? body.substring(0, maxLength) + '...'
             : body;
 
-        const isEmergency = channelId === 'emergency';
+        // Auto-detect emergency from data if not explicitly set
+        // Priority: channelId -> data.category -> data.type
+        const category = data?.category || data?.type || 'default';
+        const isEmergency = channelId === 'darurat' || category === 'DARURAT' || category === 'darurat';
+        
+        // Force channel ID for emergency to ensure high priority
+        let effectiveChannelId = isEmergency ? 'darurat' : channelId;
+        
+        // Determine sound
+        const soundName = isEmergency ? 'alarm' : 'app_default';
+
+        if (!isEmergency) {
+            // Re-map other channels if needed
+            if (category === 'EVENT') effectiveChannelId = 'event';
+            else if (category === 'PENGADUAN' || category === 'pengaduan') effectiveChannelId = 'pengaduan';
+            else if (category === 'BERITA') effectiveChannelId = 'berita';
+            else if (category === 'SAMSAT') effectiveChannelId = 'samsat';
+        }
+
         let largeIcon = '';
 
         if (isEmergency) {
             largeIcon = 'https://cdn-icons-png.flaticon.com/512/564/564619.png'; // Red Triangle
-        } else if (data?.category === 'EVENT') {
-            largeIcon = 'https://cdn-icons-png.flaticon.com/512/1243/1243566.png'; // Blue Megaphone
-        } else if (data?.category === 'PENGADUAN') {
-            largeIcon = 'https://cdn-icons-png.flaticon.com/512/3233/3233497.png'; // Yellow Megaphone
+        } else if (category === 'EVENT') {
+            largeIcon = 'https://img.icons8.com/?size=100&id=12381&format=png&color=000000'; // Blue Megaphone
+        } else if (category === 'PENGADUAN' || category === 'pengaduan') {
+            largeIcon = 'https://img.icons8.com/?size=100&id=undefined&format=png&color=000000'; // Yellow Megaphone
+        } else if (category === 'BERITA') {
+            largeIcon = 'https://img.icons8.com/?size=100&id=10342&format=png&color=000000'; // News Icon
+        } else if (category === 'SAMSAT') {
+            largeIcon = 'https://img.icons8.com/?size=100&id=11488&format=png&color=000000'; // Car Icon
         } else {
             // Default
-            largeIcon = 'https://cdn-icons-png.flaticon.com/512/1156/1156949.png';
+            largeIcon = 'https://img.icons8.com/?size=100&id=2FwYNlVLFI4Z&format=png&color=000000';
         }
 
         const androidConfig: any = {
-            channelId: channelId,
-            sound: isEmergency ? 'alarm' : 'default',
+            channelId: effectiveChannelId,
+            sound: soundName,
             importance: isEmergency ? AndroidImportance.HIGH : AndroidImportance.DEFAULT,
             pressAction: {
                 id: 'default',
@@ -63,7 +217,7 @@ class NotificationHelper {
             largeIcon: largeIcon,
         };
 
-        if (isEmergency || data?.category === 'EVENT' || data?.category === 'PENGADUAN') {
+        if (isEmergency || category === 'EVENT' || category === 'PENGADUAN' || category === 'pengaduan' || category === 'BERITA' || category === 'SAMSAT') {
             androidConfig.style = {
                 type: AndroidStyle.BIGTEXT,
                 text: body,
@@ -98,6 +252,37 @@ class NotificationHelper {
             data: sanitizedData,
             android: androidConfig,
         });
+    }
+
+    // Register FCM Token to Backend
+    async registerFCMToken(jwt?: string) {
+        try {
+            await this.requestUserPermission();
+            const token = await this.getFCMToken();
+            
+            if (!token) {
+                console.log('FCM Token negotiation failed, skipping registration');
+                return;
+            }
+
+            // Import api dynamically to avoid circular dependencies if necessary, 
+            // though standard import is usually fine at top level.
+            // Using require to be safe if this is called from early init context
+            const api = require('../config/api').default;
+            
+            // Use the provided JWT or let the interceptor handle it
+            const config: any = {};
+            if (jwt) {
+                config.headers = { Authorization: `Bearer ${jwt}` };
+            }
+
+            console.log('Registering FCM token to backend...');
+            await api.post('/fcm/register', { fcmToken: token }, config);
+            console.log('FCM token registered successfully');
+            
+        } catch (error) {
+            console.error('Failed to register FCM token:', error);
+        }
     }
 }
 

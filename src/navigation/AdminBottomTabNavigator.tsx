@@ -7,6 +7,7 @@ import ProfileStackNavigator from './ProfileStackNavigator';
 import EmergencyScreen from '../screens/EmergencyScreen';
 import FeatherIcon from 'react-native-vector-icons/Feather';
 import ApplicationScreen from '../screens/admin/ApplicationScreen';
+import ScanQRScreen from '../screens/ScanQRScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -40,7 +41,7 @@ export default function AdminBottomTabNavigator() {
                 }}
             />
             <Tab.Screen
-                name="Aplikasi"
+                name="MenuApp"
                 component={ApplicationScreen}
                 options={{
                     tabBarIcon: ({ color }) => <Icon name="grid-view" size={24} color={color} />,
@@ -48,9 +49,10 @@ export default function AdminBottomTabNavigator() {
             />
             <Tab.Screen
                 name="Scan"
-                component={() => <PlaceholderScreen name="Scan" />}
+                component={ScanQRScreen}
                 options={{
                     tabBarLabel: () => null,
+                    tabBarStyle: { display: 'none' }, // Hide tab bar when on Scan screen
                     tabBarButton: (props) => {
                         const { delayLongPress, ...rest } = props as any;
                         return (
@@ -71,7 +73,8 @@ export default function AdminBottomTabNavigator() {
                 name="Darurat"
                 component={EmergencyScreen}
                 options={{
-                    tabBarIcon: ({ color }) => <FeatherIcon name="alert-circle" size={22} color={color} />,
+                    tabBarActiveTintColor: '#EC4899',
+                    tabBarIcon: ({ color, focused }) => <FeatherIcon name="alert-circle" size={22} color={focused ? '#EC4899' : color} />,
                 }}
             />
             <Tab.Screen

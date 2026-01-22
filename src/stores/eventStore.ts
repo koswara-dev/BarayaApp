@@ -14,8 +14,10 @@ interface EventState {
     totalPages: number;
     hasMore: boolean;
 
-    fetchEvents: (params?: { page?: number; size?: number; isLoadMore?: boolean }) => Promise<void>;
+    fetchEvents: (params?: { page?: number; size?: number; isLoadMore?: boolean; search?: string }) => Promise<void>;
     createEvent: (data: any) => Promise<any>;
+    getEventById: (id: number) => Promise<Event | null>;
+    updateEvent: (id: number, data: any) => Promise<any>;
     clearError: () => void;
 }
 
@@ -28,13 +30,16 @@ const useEventStore = create<EventState>((set, get) => ({
     hasMore: true,
 
     fetchEvents: async (params = {}) => {
-        const { page = 0, size = 10, isLoadMore = false } = params;
+        const { page = 0, size = 10, isLoadMore = false, search: title } = params;
         if (get().loading && isLoadMore) return;
         set({ loading: true, error: null });
 
         try {
+            const apiParams: any = { page, size, sort: 'createdAt,desc' };
+            if (title) apiParams.judul = title;
+
             const res = await api.get('/event', {
-                params: { page, size, sort: 'createdAt,desc' }
+                params: apiParams
             });
 
             if (res.data.success) {
@@ -63,8 +68,6 @@ const useEventStore = create<EventState>((set, get) => ({
         set({ loading: true, error: null });
         try {
             const token = useAuthStore.getState().token;
-            if (!token) throw new Error("Authentication required");
-
             const parts: any[] = [
                 { name: 'judul', data: data.judul },
                 { name: 'deskripsi', data: data.deskripsi },
@@ -74,9 +77,14 @@ const useEventStore = create<EventState>((set, get) => ({
                 { name: 'dinasId', data: String(data.dinasId) },
             ];
 
-            if (data.latitude !== undefined && data.latitude !== null) parts.push({ name: 'latitude', data: String(data.latitude) });
-            if (data.longitude !== undefined && data.longitude !== null) parts.push({ name: 'longitude', data: String(data.longitude) });
+            if (data.latitude !== undefined && data.latitude !== null) {
+                parts.push({ name: 'latitude', data: String(data.latitude) });
+            }
+            if (data.longitude !== undefined && data.longitude !== null) {
+                parts.push({ name: 'longitude', data: String(data.longitude) });
+            }
 
+            // Append Image
             if (data.foto && data.foto.uri) {
                 const fileType = data.foto.type || 'image/jpeg';
                 const compressedUri = await compressImage(data.foto.uri, fileType);
@@ -84,62 +92,137 @@ const useEventStore = create<EventState>((set, get) => ({
                 if (compressedUri) {
                     const extension = fileType.includes('png') ? '.png' : '.jpg';
                     const fileName = data.foto.fileName || `event_${Date.now()}${extension}`;
-
-                    let uri = compressedUri;
-                    if (Platform.OS === 'ios') {
-                        uri = uri.replace('file://', '');
-                    }
+                    const realUri = Platform.OS === 'ios' ? compressedUri.replace('file://', '') : compressedUri;
 
                     parts.push({
                         name: 'gambar',
                         filename: fileName,
                         type: fileType,
-                        data: ReactNativeBlobUtil.wrap(uri)
+                        data: ReactNativeBlobUtil.wrap(realUri)
                     });
                 }
             }
 
-            console.log('Posting Event Multipart to:', `${API_BASE_URL}/event`);
+            console.log('Posting Event Multipart via BlobUtil to:', '/event');
 
             const response = await ReactNativeBlobUtil.fetch('POST', `${API_BASE_URL}/event`, {
-                Authorization: `Bearer ${token}`,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'multipart/form-data',
             }, parts);
 
-            const responseStatus = response.info().status;
-            const responseText = await response.text();
-
-            console.log(`Server Response (${responseStatus}):`, responseText);
-
-            let responseData;
+            const respText = await response.text();
+            let respJson;
             try {
-                responseData = JSON.parse(responseText);
+                respJson = JSON.parse(respText);
             } catch (e) {
-                responseData = { success: false, message: 'Server error: ' + responseText.substring(0, 50) };
+                 throw new Error(`Invalid JSON response: ${respText.substring(0, 100)}...`);
             }
 
-            if (responseStatus >= 200 && responseStatus < 300 && responseData.success) {
-                const result = responseData.data || true;
-
-                return result;
+            if (response.info().status >= 200 && response.info().status < 300 && respJson.success) {
+                return respJson.data;
             } else {
-                const errorMsg = responseData.message || `Gagal membuat event (Status: ${responseStatus})`;
-                set({ error: errorMsg });
-                throw new Error(errorMsg);
+                throw new Error(respJson.message || 'Gagal membuat event');
             }
         } catch (error: any) {
             console.error('Create event error:', error);
             let finalMsg = error.message || 'Terjadi kesalahan saat membuat event';
-
-            // Handle specific backend DB errors
-            if (finalMsg.includes('duplicate key value') || finalMsg.includes('unique constraint')) {
-                finalMsg = 'Gagal menyimpan: Terjadi konflik data pada Server (ID Conflict). Mohon hubungi admin untuk reset database sequence.';
+            
+            if (finalMsg.includes('duplicate key value')) {
+                 finalMsg = 'Gagal menyimpan: Terjadi konflik data pada Server.';
             }
 
             set({ error: finalMsg });
             throw new Error(finalMsg);
         } finally {
             set({ loading: false });
+        }
+    },
+
+    // ... (rest of methods)
+
+    getEventById: async (id: number) => {
+        const existing = get().events.find(e => e.id === id);
+        if (existing) return existing;
+
+        try {
+            const response = await api.get(`/event/${id}`);
+            if (response.data?.success) {
+                return response.data.data;
+            }
+            return null;
+        } catch (error) {
+            console.log('Get event by id error:', error);
+            return null;
+        }
+    },
+
+    updateEvent: async (id: number, data: any) => {
+        set({ loading: true, error: null });
+        try {
+            const token = useAuthStore.getState().token;
+            const parts: any[] = [
+                { name: 'judul', data: data.judul },
+                { name: 'deskripsi', data: data.deskripsi },
+                { name: 'tanggalMulai', data: data.tanggalMulai },
+                { name: 'tanggalSelesai', data: data.tanggalSelesai },
+                { name: 'lokasi', data: data.lokasi },
+                { name: 'dinasId', data: String(data.dinasId) },
+            ];
+            
+            if (data.latitude !== undefined && data.latitude !== null) {
+                parts.push({ name: 'latitude', data: String(data.latitude) });
+            }
+            if (data.longitude !== undefined && data.longitude !== null) {
+                parts.push({ name: 'longitude', data: String(data.longitude) });
+            }
+
+            // Append Image if new one is selected
+            if (data.foto && data.foto.uri) {
+                const fileType = data.foto.type || 'image/jpeg';
+                const compressedUri = await compressImage(data.foto.uri, fileType);
+
+                if (compressedUri) {
+                    const extension = fileType.includes('png') ? '.png' : '.jpg';
+                    const fileName = data.foto.fileName || `event_${Date.now()}${extension}`;
+                    const realUri = Platform.OS === 'ios' ? compressedUri.replace('file://', '') : compressedUri;
+
+                    parts.push({
+                        name: 'gambar',
+                        filename: fileName,
+                        type: fileType,
+                        data: ReactNativeBlobUtil.wrap(realUri)
+                    });
+                }
+            }
+
+            const response = await ReactNativeBlobUtil.fetch('PUT', `${API_BASE_URL}/event/${id}`, {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data',
+            }, parts);
+
+            const respText = await response.text();
+            let respJson;
+            try {
+                respJson = JSON.parse(respText);
+            } catch (e) {
+                 throw new Error(`Invalid JSON response: ${respText.substring(0, 100)}...`);
+            }
+
+            if (response.info().status >= 200 && response.info().status < 300 && respJson.success) {
+                 // Update local list
+                set(state => ({
+                    events: state.events.map(item => item.id === id ? { ...item, ...respJson.data } : item),
+                    loading: false
+                }));
+                return respJson.data;
+            } else {
+                 throw new Error(respJson.message || 'Gagal update event');
+            }
+        } catch (error: any) {
+            console.error('Update event error:', error);
+            const msg = error.message || 'Terjadi kesalahan saat update event';
+            set({ error: msg, loading: false });
+            throw new Error(msg);
         }
     },
 

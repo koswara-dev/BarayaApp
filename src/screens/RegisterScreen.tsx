@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import useToastStore from '../stores/toastStore';
-import api from '../config/api';
+import api, { API_BASE_URL } from '../config/api';
 import LoadingOverlay from '../components/LoadingOverlay';
 
 export default function RegisterScreen({ navigation }: any) {
@@ -70,7 +70,7 @@ export default function RegisterScreen({ navigation }: any) {
         // Phone
         const phone = formData.phoneNumber;
         if (phone.length === 0) setValidity((p: any) => ({ ...p, phoneNumber: 'neutral' }));
-        else if (phone.startsWith('08') && phone.length >= 10) setValidity((p: any) => ({ ...p, phoneNumber: 'valid' }));
+        else if (phone.startsWith('628') && phone.length >= 10) setValidity((p: any) => ({ ...p, phoneNumber: 'valid' }));
         else setValidity((p: any) => ({ ...p, phoneNumber: 'invalid' }));
 
         // Alamat
@@ -249,7 +249,7 @@ export default function RegisterScreen({ navigation }: any) {
                             <Icon name="call-outline" size={20} color={getIconColor(validity.phoneNumber)} />
                             <TextInput
                                 style={styles.input}
-                                placeholder="08xxxxxxxxxx"
+                                placeholder="628xxxxxxxxxx"
                                 placeholderTextColor="#94A3B8"
                                 value={formData.phoneNumber}
                                 onChangeText={(val) => handleChange('phoneNumber', val.replace(/\D/g, ''))}
@@ -258,7 +258,7 @@ export default function RegisterScreen({ navigation }: any) {
                             {validity.phoneNumber === 'valid' && <Icon name="checkmark-circle" size={20} color="#10B981" />}
                         </View>
                         <Text style={[styles.helperText, validity.phoneNumber === 'invalid' && styles.errorHelper]}>
-                            {validity.phoneNumber === 'invalid' ? 'Nomor harus diawali 08' : 'Contoh: 08123456789'}
+                            {validity.phoneNumber === 'invalid' ? 'Nomor harus diawali 628' : 'Contoh: 08123456789'}
                         </Text>
 
                         <Text style={styles.inputLabel}>Alamat Lengkap</Text>
@@ -282,7 +282,31 @@ export default function RegisterScreen({ navigation }: any) {
                             onPress={handleNextToStep2}
                             disabled={loading}
                         >
-                            <Text style={styles.primaryBtnText}>Selanjutnya</Text>
+                            <Text style={styles.primaryBtnText}>Lanjut</Text>
+                        </TouchableOpacity>
+
+                        {/* Divider */}
+                        <View style={styles.dividerContainer}>
+                            <View style={styles.divider} />
+                            <Text style={styles.dividerText}>Atau daftar dengan</Text>
+                            <View style={styles.divider} />
+                        </View>
+
+                        {/* Google Login */}
+                        <TouchableOpacity
+                            style={styles.googleBtn}
+                            onPress={() => navigation.navigate('Webview', { 
+                                url: `${API_BASE_URL}/auth/google`, 
+                                title: 'Daftar Google',
+                                isAuth: true
+                            })}
+                        >
+                            <Image
+                                source={{ uri: 'https://img.icons8.com/?size=100&id=17949&format=png&color=000000' }}
+                                style={styles.googleIcon}
+                                resizeMode="contain"
+                            />
+                            <Text style={styles.googleBtnText}>Daftar dengan Google</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
@@ -539,5 +563,43 @@ const styles = StyleSheet.create({
     },
     errorHelper: {
         color: '#EF4444',
+    },
+    dividerContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 32,
+    },
+    divider: {
+        flex: 1,
+        height: 1,
+        backgroundColor: '#F1F5F9',
+    },
+    dividerText: {
+        fontSize: 13,
+        color: '#64748B',
+        fontWeight: '700',
+        marginHorizontal: 16,
+    },
+    googleBtn: {
+        width: '100%',
+        height: 56,
+        borderWidth: 1.5,
+        borderColor: '#E2E8F0',
+        borderRadius: 4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 32,
+    },
+    googleIcon: {
+        width: 24,
+        height: 24,
+        marginRight: 12,
+    },
+    googleBtnText: {
+        fontSize: 15,
+        fontWeight: '900',
+        color: '#0F172A',
     },
 });

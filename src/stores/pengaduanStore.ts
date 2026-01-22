@@ -9,9 +9,12 @@ export interface Pengaduan {
     id: number;
     pesan: string;
     urlFoto: string | null;
+    urlFotoSelesai: string | null;
     status: string;
     userId: number;
     userNama: string;
+    updatedBy: number | null;
+    updatedByNama: string | null;
     dinasId: number;
     dinasNama: string;
     createdAt: string;
@@ -26,9 +29,9 @@ interface PengaduanState {
     totalPages: number;
     hasMore: boolean;
 
-    fetchPengaduan: (params?: { page?: number; size?: number; isLoadMore?: boolean }) => Promise<void>;
+    fetchPengaduan: (params?: { page?: number; size?: number; isLoadMore?: boolean; userId?: number; status?: string; dinasId?: number; sort?: string }) => Promise<void>;
     createPengaduan: (data: any) => Promise<any>;
-    updatePengaduanStatus: (id: number, status: string) => Promise<any>;
+    updatePengaduanStatus: (id: number, status: string, existingData?: Pengaduan, fotoSelesai?: any) => Promise<any>;
     getPengaduanById: (id: number) => Promise<Pengaduan | null>;
     clearError: () => void;
 }
@@ -41,29 +44,84 @@ const usePengaduanStore = create<PengaduanState>((set, get) => ({
     totalPages: 1,
     hasMore: true,
 
-    updatePengaduanStatus: async (id, status) => {
+    updatePengaduanStatus: async (id, status, existingData?: Pengaduan, fotoSelesai?: any) => {
         set({ loading: true, error: null });
         try {
             const token = useAuthStore.getState().token;
+            const currentUser = useAuthStore.getState().user;
             if (!token) throw new Error("Authentication required");
 
-            const response = await api.put(`/pengaduan/${id}?status=${status}`, null);
+            const sourceData = existingData || 
+                              get().list.find(item => item.id === id);
 
-            if (response.data?.success) {
+            const parts: any[] = [
+                { name: 'status', data: status }
+            ];
+
+            if (currentUser?.id) {
+                parts.push({ name: 'updatedBy', data: String(currentUser.id) });
+            }
+
+            if (fotoSelesai && fotoSelesai.uri) {
+                const fileType = fotoSelesai.type || 'image/jpeg';
+                const compressedUri = await compressImage(fotoSelesai.uri, fileType);
+        
+                if (compressedUri) {
+                    const extension = fileType.includes('png') ? '.png' : '.jpg';
+                    const fileName = fotoSelesai.fileName || `selesai_${Date.now()}${extension}`;
+                    const realUri = Platform.OS === 'ios' ? compressedUri.replace('file://', '') : compressedUri;
+        
+                    parts.push({
+                        name: 'fotoSelesai',
+                        filename: fileName,
+                        type: fileType,
+                        data: ReactNativeBlobUtil.wrap(realUri)
+                    });
+                }
+            }
+
+            if (sourceData) {
+                // Keep other data
+                if (sourceData.pesan) parts.push({ name: 'pesan', data: sourceData.pesan });
+                if (sourceData.userId) parts.push({ name: 'userId', data: String(sourceData.userId) });
+                if (sourceData.dinasId) parts.push({ name: 'dinasId', data: String(sourceData.dinasId) });
+                // Do not append 'foto' url string
+            }
+
+            const response = await ReactNativeBlobUtil.fetch('PUT', `${API_BASE_URL}/pengaduan/${id}`, {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data',
+            }, parts);
+
+            const respText = await response.text();
+            let respJson;
+            try {
+                respJson = JSON.parse(respText);
+            } catch (e) {
+                 throw new Error(`Invalid JSON response: ${respText.substring(0, 100)}...`);
+            }
+
+            if (response.info().status >= 200 && response.info().status < 300 && respJson.success) {
                 // Optimistic update locally
                 set((state) => ({
                     list: state.list.map(item =>
-                        item.id === id ? { ...item, status: status } : item
+                        item.id === id ? { 
+                            ...item, 
+                            status: status, 
+                            urlFotoSelesai: respJson.data?.urlFotoSelesai, 
+                            updatedBy: currentUser?.id ? Number(currentUser.id) : null,
+                            updatedByNama: currentUser?.fullName || null
+                        } : item
                     ),
                     loading: false
                 }));
-                return response.data.data;
+                return respJson.data;
             } else {
-                throw new Error(response.data?.message || "Gagal memperbarui status");
+                throw new Error(respJson.message || "Gagal memperbarui status");
             }
         } catch (error: any) {
             console.error('Update status error:', error);
-            const msg = error.response?.data?.message || error.message || 'Gagal memperbarui status';
+            const msg = error.message || 'Gagal memperbarui status';
             set({ error: msg, loading: false });
             throw new Error(msg);
         }
@@ -90,13 +148,29 @@ const usePengaduanStore = create<PengaduanState>((set, get) => ({
     },
 
     fetchPengaduan: async (params = {}) => {
-        const { page = 0, size = 10, isLoadMore = false } = params;
+        const { page = 0, size = 10, isLoadMore = false, userId, status, dinasId } = params;
         if (get().loading && isLoadMore) return;
         set({ loading: true, error: null });
 
         try {
+            const user = useAuthStore.getState().user;
+            const apiParams: any = { page, size, sort: params.sort || 'createdAt,desc' };
+            
+            if (userId) apiParams.userId = userId;
+            if (status) apiParams.status = status;
+            
+            // Auto-inject dinasId for ADMIN/STAFF if not explicitly provided (or force it)
+            if (user?.role === 'ADMIN' || user?.role === 'STAFF') {
+                 if (user.dinasId) {
+                     apiParams.dinasId = user.dinasId;
+                 }
+            } else if (dinasId) {
+                // For other roles (e.g. Superadmin filtering), use passed param
+                apiParams.dinasId = dinasId;
+            }
+
             const res = await api.get('/pengaduan', {
-                params: { page, size, sort: 'createdAt,desc' }
+                params: apiParams
             });
 
             if (res.data.success) {
@@ -125,8 +199,6 @@ const usePengaduanStore = create<PengaduanState>((set, get) => ({
         set({ loading: true, error: null });
         try {
             const token = useAuthStore.getState().token;
-            if (!token) throw new Error("Authentication required");
-
             const parts: any[] = [
                 { name: 'pesan', data: data.pesan },
                 { name: 'dinasId', data: String(data.dinasId) },
@@ -139,54 +211,38 @@ const usePengaduanStore = create<PengaduanState>((set, get) => ({
                 if (compressedUri) {
                     const extension = fileType.includes('png') ? '.png' : '.jpg';
                     const fileName = data.foto.fileName || `pengaduan_${Date.now()}${extension}`;
-
-                    let uri = compressedUri;
-                    if (Platform.OS === 'ios') {
-                        uri = uri.replace('file://', '');
-                    }
+                    const realUri = Platform.OS === 'ios' ? compressedUri.replace('file://', '') : compressedUri;
 
                     parts.push({
                         name: 'foto',
                         filename: fileName,
                         type: fileType,
-                        data: ReactNativeBlobUtil.wrap(uri)
+                        data: ReactNativeBlobUtil.wrap(realUri)
                     });
                 }
             }
 
-            console.log('Posting Pengaduan Multipart to:', `${API_BASE_URL}/pengaduan`);
+            console.log('Posting Pengaduan Multipart via BlobUtil to:', '/pengaduan');
 
             const response = await ReactNativeBlobUtil.fetch('POST', `${API_BASE_URL}/pengaduan`, {
-                Authorization: `Bearer ${token}`,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'multipart/form-data',
             }, parts);
 
-            const responseStatus = response.info().status;
-            const responseText = await response.text();
-
-            console.log(`Server Response (${responseStatus}):`, responseText);
-
-            let responseData;
+            const respText = await response.text();
+            let respJson;
             try {
-                responseData = JSON.parse(responseText);
+                respJson = JSON.parse(respText);
             } catch (e) {
-                responseData = { success: false, message: 'Server error: ' + responseText.substring(0, 50) };
+                 throw new Error(`Invalid JSON response: ${respText.substring(0, 100)}...`);
             }
 
-            if (responseStatus >= 200 && responseStatus < 300 && responseData.success) {
-                const result = responseData.data || true;
-
-                console.log('CreatePengaduan Result:', result); // DEBUG Log
-
-                // Removed manual notification trigger to avoid duplication
-                // with backend-generated 'Pengaduan Baru' notification.
-
-
+            if (response.info().status >= 200 && response.info().status < 300 && respJson.success) {
+                const result = respJson.data;
+                console.log('CreatePengaduan Result:', result);
                 return result;
             } else {
-                const errorMsg = responseData.message || `Gagal mengirim pengaduan (Status: ${responseStatus})`;
-                set({ error: errorMsg });
-                throw new Error(errorMsg);
+                throw new Error(respJson.message || 'Gagal mengirim pengaduan');
             }
         } catch (error: any) {
             console.error('Create pengaduan error:', error);

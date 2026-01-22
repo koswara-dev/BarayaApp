@@ -12,10 +12,15 @@ import {
     RefreshControl,
     Dimensions,
     Animated,
+    TextInput,
+    FlatList
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
+import { useDebounce } from 'use-debounce';
 import useEventStore from '../stores/eventStore';
+import useAuthStore from '../stores/authStore';
+import { Role } from '../types/auth';
 import { getImageUrl } from '../config/api';
 
 const { width } = Dimensions.get('window');
@@ -83,28 +88,44 @@ const EventCardSkeleton = () => (
 
 export default function EventListScreen() {
     const navigation = useNavigation<any>();
-    const { events, loading, fetchEvents, hasMore, page } = useEventStore();
+    const { 
+        events, 
+        loading, 
+        error, 
+        hasMore,
+        fetchEvents 
+    } = useEventStore();
+
+    const { user } = useAuthStore();
+    const canCreate = user?.role === Role.SUPERADMIN || user?.role === Role.EXECUTIVE || user?.role === Role.ADMIN;
+    
+    // Local state
     const [refreshing, setRefreshing] = useState(false);
-    const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedQuery] = useDebounce(searchQuery, 500);
 
+    // Initial Fetch (and on debouncedQuery change)
     useEffect(() => {
-        const loadData = async () => {
-            await fetchEvents({ page: 0 });
-            setIsInitialLoad(false);
-        };
-        loadData();
-    }, []);
+        fetchEvents({ search: debouncedQuery });
+    }, [debouncedQuery]);
 
+    // Pull to Refresh
     const onRefresh = async () => {
         setRefreshing(true);
-        await fetchEvents({ page: 0 });
+        await fetchEvents({ page: 0, search: debouncedQuery });
         setRefreshing(false);
     };
 
-    const handleLoadMore = () => {
-        if (hasMore && !loading) {
-            fetchEvents({ page: page + 1, isLoadMore: true });
-        }
+    // Load More (Pagination)
+    const loadMore = async () => {
+        if (!hasMore || loading || loadingMore) return;
+        
+        setLoadingMore(true);
+        // Calculate next page based on current list size / page size assumption or store page
+        const currentPage = useEventStore.getState().page;
+        await fetchEvents({ page: currentPage + 1, isLoadMore: true, search: debouncedQuery });
+        setLoadingMore(false);
     };
 
     const formatDate = (dateString: string) => {
@@ -118,90 +139,124 @@ export default function EventListScreen() {
         });
     };
 
+    const renderItem = ({ item: event }: { item: any }) => (
+        <TouchableOpacity 
+            style={styles.eventCard}
+            onPress={() => navigation.navigate('EventDetail', { event })}
+        >
+            {(() => {
+                const imagePath = event.urlGambar || (event as any).url_gambar || (event as any).foto;
+                return imagePath ? (
+                    <Image source={{ uri: getImageUrl(imagePath) }} style={styles.eventImage} resizeMode="cover" />
+                ) : (
+                    <View style={[styles.eventImage, styles.placeholderImage]}>
+                        <Icon name="calendar" size={40} color="#CBD5E1" />
+                    </View>
+                );
+            })()}
+            
+            <View style={styles.eventDetails}>
+                <Text style={styles.eventTitle} numberOfLines={2}>{event.judul}</Text>
+                
+                <View style={styles.infoRow}>
+                    <Icon name="calendar-outline" size={14} color="#64748B" />
+                    <Text style={styles.infoText}>{formatDate(event.tanggalMulai)}</Text>
+                </View>
+                
+                <View style={styles.infoRow}>
+                    <Icon name="location-outline" size={14} color="#64748B" />
+                    <Text style={styles.infoText} numberOfLines={1}>{event.lokasi}</Text>
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+
     // Show skeleton on initial load
-    const showSkeleton = isInitialLoad && loading;
+    // const showSkeleton = isInitialLoad && loading; // Removed isInitialLoad
 
-    return (
-        <View style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
-
-            {/* Header */}
+    const renderHeader = () => (
+        <>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Icon name="arrow-back" size={24} color="#0F172A" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Agenda Kegiatan</Text>
-                <View style={styles.headerBtn} />
+                <View style={styles.headerBtn}>
+                    {canCreate && (
+                        <TouchableOpacity onPress={() => navigation.navigate('CreateEvent')}>
+                            <Icon name="add-circle" size={28} color="#F59E0B" />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
-            <ScrollView
-                style={styles.content}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#F59E0B']} />
-                }
-                onMomentumScrollEnd={(e) => {
-                    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-                    const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 20;
-                    if (isCloseToBottom) handleLoadMore();
-                }}
-            >
-                {showSkeleton ? (
-                    <View style={styles.eventList}>
-                        {[1, 2, 3].map((_, index) => (
-                            <EventCardSkeleton key={index} />
-                        ))}
-                    </View>
-                ) : events.length === 0 && !loading ? (
-                    <View style={styles.emptyContainer}>
-                        <Icon name="calendar-outline" size={64} color="#E2E8F0" />
-                        <Text style={styles.emptyText}>Belum ada agenda kegiatan</Text>
-                    </View>
-                ) : (
-                    <View style={styles.eventList}>
-                        {events.map((event) => (
-                            <TouchableOpacity key={event.id} style={styles.eventCard}>
-                                {(() => {
-                                    const imagePath = event.urlGambar || (event as any).url_gambar || (event as any).foto;
-                                    return imagePath ? (
-                                        <Image source={{ uri: getImageUrl(imagePath) }} style={styles.eventImage} resizeMode="cover" />
-                                    ) : (
-                                        <View style={[styles.eventImage, styles.placeholderImage]}>
-                                            <Icon name="image-outline" size={40} color="#CBD5E1" />
-                                        </View>
-                                    );
-                                })()}
-                                <View style={styles.eventDetails}>
-                                    <View style={styles.categoryRow}>
-                                        <View style={styles.dinasBadge}>
-                                            <Text style={styles.dinasText}>{event.dinasNama}</Text>
-                                        </View>
-                                    </View>
-                                    <Text style={styles.eventTitle} numberOfLines={2}>{event.judul}</Text>
+             {/* Search Bar */}
+             <View style={styles.searchContainer}>
+                <View style={styles.searchBar}>
+                    <Icon name="search-outline" size={20} color="#94A3B8" />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Cari agenda..."
+                        placeholderTextColor="#94A3B8"
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                    />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity onPress={() => setSearchQuery('')}>
+                            <Icon name="close-circle" size={18} color="#94A3B8" />
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
+        </>
+    );
 
-                                    <View style={styles.infoRow}>
-                                        <Icon name="time-outline" size={14} color="#64748B" />
-                                        <Text style={styles.infoText}>{formatDate(event.tanggalMulai)}</Text>
-                                    </View>
+    const showSkeleton = loading && !events.length && !refreshing;
 
-                                    <View style={styles.infoRow}>
-                                        <Icon name="location-outline" size={14} color="#64748B" />
-                                        <Text style={styles.infoText} numberOfLines={1}>{event.lokasi}</Text>
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                )}
+    const renderEmpty = () => {
+        if (loading || events.length > 0) return null;
+        return (
+            <View style={styles.emptyContainer}>
+                <Icon name="calendar-outline" size={48} color="#CBD5E1" />
+                <Text style={styles.emptyText}>Belum ada agenda kegiatan</Text>
+            </View>
+        );
+    };
 
-                {loading && !isInitialLoad && (
-                    <View style={styles.loadingFooter}>
-                        <ActivityIndicator color="#F59E0B" />
-                    </View>
-                )}
+    return (
+        <View style={styles.container}>
+            <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
 
-                <View style={{ height: 40 }} />
-            </ScrollView>
+            {renderHeader()}
+
+            {showSkeleton ? (
+                <View style={styles.listContent}>
+                    <EventCardSkeleton />
+                    <EventCardSkeleton />
+                    <EventCardSkeleton />
+                </View>
+            ) : (
+                <FlatList
+                    data={events}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={renderItem}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#F59E0B']} />
+                    }
+                    onEndReached={loadMore}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={
+                        loadingMore ? (
+                            <View style={styles.loadingMore}>
+                                <ActivityIndicator size="small" color="#F59E0B" />
+                            </View>
+                        ) : null
+                    }
+                    ListEmptyComponent={renderEmpty()}
+                />
+            )}
         </View>
     );
 }
@@ -215,9 +270,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'ios' ? 50 : 20,
-        paddingBottom: 16,
+        paddingHorizontal: 20,
+        paddingTop: Platform.OS === 'ios' ? 60 : 20,
+        paddingBottom: 20,
         backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
         borderBottomColor: '#F1F5F9',
@@ -225,27 +280,52 @@ const styles = StyleSheet.create({
     headerBtn: {
         width: 40,
         height: 40,
-        alignItems: 'center',
         justifyContent: 'center',
+        alignItems: 'center',
     },
     headerTitle: {
         fontSize: 18,
-        fontWeight: "900",
-        color: "#0F172A",
+        fontWeight: '800',
+        color: '#0F172A',
     },
-    content: {
+    searchContainer: {
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9',
+    },
+    searchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F8FAFC',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        height: 44,
+        borderWidth: 1,
+        borderColor: '#E2E8F0'
+    },
+    searchInput: {
         flex: 1,
+        marginLeft: 8,
+        fontSize: 14,
+        color: '#0F172A',
+        height: '100%',
+        paddingVertical: 0,
     },
-    eventList: {
-        padding: 16,
+    listContent: {
+        padding: 20,
+        paddingTop: 10,
+        paddingBottom: 40,
     },
     eventCard: {
         backgroundColor: '#FFFFFF',
-        borderRadius: 0, // Flat design as requested previously for other screens
         marginBottom: 16,
-        overflow: 'hidden',
+        // Flat design refinement
         borderWidth: 1,
         borderColor: '#F1F5F9',
+        borderRadius: 12, 
+        overflow: 'hidden',
         elevation: 2,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
@@ -270,25 +350,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 8,
     },
-    dinasBadge: {
-        backgroundColor: '#FFFBEB',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        alignSelf: 'flex-start',
-        borderWidth: 1,
-        borderColor: '#FEF3C7',
-    },
-    dinasText: {
-        fontSize: 10,
-        fontWeight: '900',
-        color: '#F59E0B',
-        textTransform: 'uppercase',
-    },
     eventTitle: {
         fontSize: 16,
         fontWeight: '900',
         color: '#1E293B',
-        marginBottom: 12,
+        marginBottom: 8,
         lineHeight: 22,
     },
     infoRow: {
@@ -308,12 +374,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     emptyText: {
-        marginTop: 16,
-        fontSize: 14,
+        marginTop: 12,
+        fontSize: 16,
         color: '#94A3B8',
-        fontWeight: '600',
+        fontWeight: '500',
     },
-    loadingFooter: {
+    loadingMore: {
         paddingVertical: 20,
+        alignItems: 'center',
     }
 });

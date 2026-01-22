@@ -9,11 +9,13 @@ import {
     ActivityIndicator,
     Image,
     StatusBar,
-    Platform
+    Platform,
+    ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import usePengaduanStore from '../../stores/pengaduanStore';
+import useAuthStore from '../../stores/authStore';
 import { getImageUrl } from '../../config/api';
 import SkeletonShimmer from '../../components/SkeletonShimmer';
 
@@ -39,6 +41,14 @@ const PengaduanCardSkeleton = () => (
         </View>
     </View>
 );
+
+const STATUS_FILTERS = [
+    { label: 'Semua', value: '' },
+    { label: 'Diajukan', value: 'diajukan' },
+    { label: 'Diproses', value: 'diproses' },
+    { label: 'Selesai', value: 'selesai' },
+    { label: 'Ditolak', value: 'ditolak' },
+];
 
 const StatusBadge = ({ status }: { status: string }) => {
     let color = '#64748B';
@@ -75,27 +85,40 @@ const StatusBadge = ({ status }: { status: string }) => {
     );
 };
 
+// removed duplicate import
+
 export default function AdminPengaduanListScreen() {
     const navigation = useNavigation<any>();
     const { list, loading, fetchPengaduan, hasMore, page } = usePengaduanStore();
+    const user = useAuthStore(state => state.user);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [selectedStatus, setSelectedStatus] = useState('');
+
+    const dinasId = user?.dinasId ? Number(user.dinasId) : undefined;
 
     useEffect(() => {
         const loadData = async () => {
-            await fetchPengaduan({ page: 0 });
+            await fetchPengaduan({ page: 0, status: selectedStatus, dinasId, sort: 'createdAt,desc' });
             setIsInitialLoad(false);
         };
         loadData();
-    }, []);
+    }, [selectedStatus, dinasId]);
 
     const onRefresh = () => {
-        fetchPengaduan({ page: 0 });
+        fetchPengaduan({ page: 0, status: selectedStatus, dinasId, sort: 'createdAt,desc' });
     };
 
     const onLoadMore = () => {
         if (hasMore && !loading) {
-            fetchPengaduan({ page: page + 1, isLoadMore: true });
+            fetchPengaduan({ page: page + 1, isLoadMore: true, status: selectedStatus, dinasId, sort: 'createdAt,desc' });
         }
+    };
+
+    const handleFilterPress = (status: string) => {
+        if (selectedStatus === status) return;
+        setIsInitialLoad(true);
+        setSelectedStatus(status);
+        // useEffect will trigger fetch
     };
 
     const showSkeleton = isInitialLoad && loading;
@@ -163,15 +186,42 @@ export default function AdminPengaduanListScreen() {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Icon name="arrow-back" size={24} color="#0F172A" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Manajemen Laporan</Text>
+                <Text style={styles.headerTitle}>Manajemen Pengaduan</Text>
                 <View style={{ width: 40 }} />
+            </View>
+
+             {/* Status Filters */}
+             <View style={styles.filterContainer}>
+                <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.filterContent}
+                >
+                    {STATUS_FILTERS.map((filter) => (
+                        <TouchableOpacity
+                            key={filter.value}
+                            style={[
+                                styles.filterChip,
+                                selectedStatus === filter.value && styles.activeFilterChip
+                            ]}
+                            onPress={() => handleFilterPress(filter.value)}
+                        >
+                            <Text style={[
+                                styles.filterText,
+                                selectedStatus === filter.value && styles.activeFilterText
+                            ]}>
+                                {filter.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
             </View>
 
             {showSkeleton ? (
                 renderSkeletonList()
             ) : (
                 <FlatList
-                    data={list}
+                    data={[...list].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())}
                     renderItem={renderItem}
                     keyExtractor={(item) => String(item.id)}
                     contentContainerStyle={styles.listContent}
@@ -212,6 +262,36 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         borderBottomWidth: 1,
         borderBottomColor: '#E2E8F0',
+    },
+    filterContainer: {
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E2E8F0',
+    },
+    filterContent: {
+        paddingHorizontal: 16,
+    },
+    filterChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: '#F1F5F9',
+        marginRight: 8,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    activeFilterChip: {
+        backgroundColor: '#FFFBEB',
+        borderColor: '#F59E0B',
+    },
+    filterText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#64748B',
+    },
+    activeFilterText: {
+        color: '#D97706',
     },
     headerBtn: {
         padding: 8,

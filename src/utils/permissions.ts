@@ -36,6 +36,17 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
         'MANAGE_EMERGENCY',
         'MANAGE_NOTIFICATION',
     ],
+    [Role.EXECUTIVE]: [
+        'MANAGE_DINAS',
+        'VIEW_DINAS',
+        'MANAGE_LAYANAN',
+        'MANAGE_USER',
+        'MANAGE_FEEDBACK',
+        'MANAGE_EVENT',
+        'MANAGE_PENGADUAN',
+        'MANAGE_EMERGENCY',
+        'MANAGE_NOTIFICATION',
+    ],
     [Role.ADMIN]: [
         'UPDATE_OWN_DINAS',
         'VIEW_DINAS',

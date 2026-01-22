@@ -10,14 +10,17 @@ import {
   ActivityIndicator,
   Platform,
   Image,
+  FlatList,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
 
+import { Service } from "../types/service";
 import useLayananStore from "../stores/layananStore";
 import { CompositeScreenProps } from '@react-navigation/native';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabParamList, RootStackParamList } from '../navigation/types';
+import { getImageUrl } from '../config/api';
 import SkeletonShimmer from '../components/SkeletonShimmer';
 
 type Props = CompositeScreenProps<
@@ -52,8 +55,15 @@ const SERVICE_IMAGES: Record<string, string> = {
   sosial: "https://images.unsplash.com/photo-1559027615-cd4628902d4a?auto=format&fit=crop&q=80&w=400",
 };
 
+interface EnhancedService extends Service {
+  dinasName: string;
+  duration: string;
+  isEmergency: boolean;
+  image: string;
+}
+
 // Enhance data with duration and image
-const enhanceData = (items: any[]) => {
+const enhanceData = (items: Service[]): EnhancedService[] => {
   return items.map((item) => {
     let dinasName = item.dinasNama ? item.dinasNama : "Dinas Pemerintahan";
     let duration = item.estimasiWaktu ? `${item.estimasiWaktu} Hari Kerja` : "3 Hari Kerja";
@@ -83,6 +93,11 @@ const enhanceData = (items: any[]) => {
       image = SERVICE_IMAGES.sosial;
     }
 
+    // Override with actual image if exists
+    if (item.urlGambar) {
+        image = getImageUrl(item.urlGambar);
+    }
+    
     return {
       ...item,
       dinasName,
@@ -93,41 +108,46 @@ const enhanceData = (items: any[]) => {
   });
 };
 
-const CATEGORIES = [
-  { id: 'semua', label: 'Semua', apiValue: '' },
-  { id: 'kesehatan', label: 'Kesehatan', apiValue: 'kesehatan' },
-  { id: 'pendidikan', label: 'Pendidikan', apiValue: 'pendidikan' },
-  { id: 'perizinan', label: 'Perizinan', apiValue: 'perizinan' },
-  { id: 'sosial', label: 'Sosial', apiValue: 'sosial' },
-];
 
-export default function LayananScreen({ navigation }: Props) {
-  const [activeCategory, setActiveCategory] = useState("semua");
+
+export default function LayananScreen({ navigation, route }: Props) {
   const [search, setSearch] = useState("");
-  const { layanan, loading, fetchLayanan, page, hasMore } = useLayananStore();
+  
+  // Handle navigation params
+  useEffect(() => {
+    if (route.params?.query) {
+      setSearch(route.params.query);
+      // clear params to avoid re-triggering if needed, though usually fine
+    }
+  }, [route.params]);
+  const { layanan, loading, fetchLayanan, page, hasMore, dinas, fetchDinas } = useLayananStore();
   const [loadingMore, setLoadingMore] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [selectedDinasId, setSelectedDinasId] = useState<number | undefined>(undefined);
 
   useEffect(() => {
-    const loadData = async () => {
-      const category = CATEGORIES.find(c => c.id === activeCategory);
-      const apiValue = category?.apiValue || '';
+    fetchDinas({ size: 50 });
+  }, []);
 
-      if (apiValue) {
-        await fetchLayanan({ name: apiValue, page: 0 });
-      } else {
-        await fetchLayanan({ page: 0 });
-      }
-      setIsInitialLoad(false);
-    };
-    loadData();
-  }, [activeCategory]);
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      loadData();
+    }, 500);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [search, selectedDinasId]);
+
+  const loadData = async () => {
+    const query = search || '';
+
+    await fetchLayanan({ name: query, page: 0, dinasId: selectedDinasId });
+    setIsInitialLoad(false);
+  };
 
   const enhancedLayanan = enhanceData(layanan);
 
-  const filtered = enhancedLayanan.filter((item) =>
-    item.nama.toLowerCase().includes(search.toLowerCase())
-  );
+  // We rely on API for filtering now
+  const filtered = enhancedLayanan;
 
   const handleScroll = ({ nativeEvent }: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
@@ -139,13 +159,14 @@ export default function LayananScreen({ navigation }: Props) {
   };
 
   const loadMoreData = async () => {
+    if (loadingMore || !hasMore) return;
     setLoadingMore(true);
-    const category = CATEGORIES.find(c => c.id === activeCategory);
-    const apiValue = category?.apiValue || '';
+    
+    const query = search || '';
 
-    const params: any = { page: page + 1, size: 10, isLoadMore: true };
-    if (apiValue) {
-      params.name = apiValue;
+    const params: any = { page: page + 1, size: 10, isLoadMore: true, dinasId: selectedDinasId };
+    if (query) {
+      params.name = query;
     }
     await fetchLayanan(params);
     setLoadingMore(false);
@@ -162,137 +183,131 @@ export default function LayananScreen({ navigation }: Props) {
         <Text style={styles.headerTitle}>Layanan Publik</Text>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        onScroll={handleScroll}
-        scrollEventThrottle={400}
-      >
+      <FlatList<any>
+        data={showSkeleton ? [1, 2, 3, 4] : filtered}
+        keyExtractor={(item: any) => (showSkeleton ? `skeleton-${item}` : String(item.id))}
+        renderItem={({ item }: { item: any }) => {
+          if (showSkeleton) {
+            return <ServiceCardSkeleton />;
+          }
+          return (
+            <TouchableOpacity
+              style={styles.card}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate("ServiceDetail", { service: item })}
+            >
+              <Image
+                source={{ uri: item.image }}
+                style={styles.cardImage}
+                resizeMode="cover"
+              />
 
-        {/* Search */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBox}>
-            <Icon name="search-outline" size={20} color="#94A3B8" />
-            <TextInput
-              placeholder="Cari layanan atau dinas..."
-              placeholderTextColor="#94A3B8"
-              value={search}
-              onChangeText={setSearch}
-              style={styles.searchInput}
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => setSearch('')}>
-                <Icon name="close-circle" size={20} color="#94A3B8" />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.dinasName} numberOfLines={1}>{item.dinasName}</Text>
+                <Text style={styles.serviceTitle} numberOfLines={2}>{item.nama}</Text>
 
-        {/* Categories Tab */}
-        <View style={styles.categoryContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
-            {CATEGORIES.map((cat) => (
-              <TouchableOpacity
-                key={cat.id}
-                style={[
-                  styles.categoryChip,
-                  activeCategory === cat.id && styles.activeChip
-                ]}
-                onPress={() => {
-                  if (activeCategory !== cat.id) {
-                    setIsInitialLoad(true);
-                    setActiveCategory(cat.id);
-                  }
-                }}
+                <View style={styles.cardFooter}>
+                  <View style={styles.durationRow}>
+                    <Icon
+                      name={item.isEmergency ? "flash" : "time-outline"}
+                      size={14}
+                      color={item.isEmergency ? "#EF4444" : "#64748B"}
+                    />
+                    <Text style={[styles.durationText, item.isEmergency && styles.emergencyText]}>
+                      {item.duration}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.actionBtn, item.isEmergency && styles.emergencyBtn]}>
+                    <Icon
+                      name={item.isEmergency ? "call" : "arrow-forward"}
+                      size={16}
+                      color={item.isEmergency ? "#EF4444" : "#0F172A"}
+                    />
+                  </View>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        }}
+        ListHeaderComponent={
+          <>
+            {/* Search */}
+            <View style={styles.searchContainer}>
+              <View style={styles.searchBox}>
+                <Icon name="search-outline" size={20} color="#94A3B8" />
+                <TextInput
+                  placeholder="Cari layanan atau dinas..."
+                  placeholderTextColor="#94A3B8"
+                  value={search}
+                  onChangeText={setSearch}
+                  style={styles.searchInput}
+                />
+                {search.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearch('')}>
+                    <Icon name="close-circle" size={20} color="#94A3B8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* Categories Tab */}
+            <View style={styles.categoryContainer}>
+               {/* Filter Dinas */}
+               <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false} 
+                  contentContainerStyle={styles.categoryScroll}
               >
-                <Text
-                  style={[
-                    styles.categoryText,
-                    activeCategory === cat.id && styles.activeCategoryText
-                  ]}
-                >{cat.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+                  <TouchableOpacity 
+                      style={[styles.categoryChip, !selectedDinasId && styles.activeChip]} 
+                      onPress={() => setSelectedDinasId(undefined)}
+                  >
+                      <Text style={[styles.categoryText, !selectedDinasId && styles.activeCategoryText]}>Semua Instansi</Text>
+                  </TouchableOpacity>
+                  {dinas.map((d) => (
+                      <TouchableOpacity 
+                          key={d.id} 
+                          style={[styles.categoryChip, selectedDinasId === d.id && styles.activeChip]}
+                          onPress={() => setSelectedDinasId(selectedDinasId === d.id ? undefined : d.id)}
+                      >
+                          <Text style={[styles.categoryText, selectedDinasId === d.id && styles.activeCategoryText]}>{d.dinasKode || d.nama}</Text>
+                      </TouchableOpacity>
+                  ))}
+              </ScrollView>
+            </View>
 
-        {/* Results Count */}
-        {!showSkeleton && (
-          <View style={styles.resultsHeader}>
-            <Text style={styles.resultsText}>
-              {filtered.length} layanan ditemukan
-            </Text>
-          </View>
-        )}
-
-        {/* Service List */}
-        <View style={styles.listContainer}>
-          {showSkeleton ? (
-            <>
-              {[1, 2, 3, 4].map((_, index) => (
-                <ServiceCardSkeleton key={index} />
-              ))}
-            </>
-          ) : filtered.length === 0 ? (
+            {/* Results Count */}
+            {!showSkeleton && (
+              <View style={styles.resultsHeader}>
+                <Text style={styles.resultsText}>
+                  {filtered.length} layanan ditemukan
+                </Text>
+              </View>
+            )}
+          </>
+        }
+        ListEmptyComponent={
+          !showSkeleton ? (
             <View style={styles.emptyContainer}>
               <Icon name="search-outline" size={56} color="#E2E8F0" />
               <Text style={styles.emptyTitle}>Layanan Tidak Ditemukan</Text>
               <Text style={styles.emptyText}>Coba kata kunci lain atau pilih kategori berbeda</Text>
             </View>
-          ) : (
-            filtered.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.card}
-                activeOpacity={0.7}
-                onPress={() => navigation.navigate("ServiceDetail", { service: item })}
-              >
-                <Image
-                  source={{ uri: item.image }}
-                  style={styles.cardImage}
-                  resizeMode="cover"
-                />
-
-                <View style={styles.cardContent}>
-                  <Text style={styles.dinasName} numberOfLines={1}>{item.dinasName}</Text>
-
-                  <Text style={styles.serviceTitle} numberOfLines={2}>{item.nama}</Text>
-
-                  <View style={styles.cardFooter}>
-                    <View style={styles.durationRow}>
-                      <Icon
-                        name={item.isEmergency ? "flash" : "time-outline"}
-                        size={14}
-                        color={item.isEmergency ? "#EF4444" : "#64748B"}
-                      />
-                      <Text style={[styles.durationText, item.isEmergency && styles.emergencyText]}>
-                        {item.duration}
-                      </Text>
-                    </View>
-
-                    <View style={[styles.actionBtn, item.isEmergency && styles.emergencyBtn]}>
-                      <Icon
-                        name={item.isEmergency ? "call" : "arrow-forward"}
-                        size={16}
-                        color={item.isEmergency ? "#EF4444" : "#0F172A"}
-                      />
-                    </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-
-          {/* Pagination Spinner */}
-          {loadingMore && (
+          ) : null
+        }
+        ListFooterComponent={
+          loadingMore ? (
             <View style={styles.paginationSpinner}>
               <ActivityIndicator size="small" color="#FFB800" />
               <Text style={styles.loadingMoreText}>Memuat lebih banyak...</Text>
             </View>
-          )}
-        </View>
-
-      </ScrollView>
+          ) : null
+        }
+        contentContainerStyle={{ paddingBottom: 100 }}
+        onEndReached={loadMoreData}
+        onEndReachedThreshold={0.5}
+      />
     </View>
   );
 }

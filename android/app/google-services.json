@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1093419075276",
+    "project_id": "baraya-472c5",
+    "storage_bucket": "baraya-472c5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1093419075276:android:fb77c41b863c92a7fc2469",
+        "android_client_info": {
+          "package_name": "go.id.kuningankab.smartservice"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-Q0KhBbFUzOqDinhqfQq_9w918OHjpHY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

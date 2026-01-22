@@ -54,6 +54,8 @@ export const extractUserFromToken = (token: string): User | null => {
             username: decoded.username || (decoded as any).preferred_username,
             email: decoded.email,
             role: decoded.role || 'USER',
+            dinasId: decoded.dinasId ? String(decoded.dinasId) : undefined,
+            camatId: decoded.camatId,
         };
     } catch (e) {
         // console.error('Error extracting user from token:', e);

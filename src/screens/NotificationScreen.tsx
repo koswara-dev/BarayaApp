@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, Sectio
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import useNotificationStore, { NotificationItem } from '../stores/notificationStore';
+import useAuthStore from '../stores/authStore';
+import { Role } from '../types/auth';
 
 const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -47,19 +49,44 @@ const formatTime = (dateString: string) => {
 };
 
 export default function NotificationScreen({ navigation }: any) {
-    const { notifications, loading, fetchNotifications } = useNotificationStore();
+    const { 
+        notifications, 
+        loading, 
+        fetchNotifications, 
+        markAsRead, 
+        loadMoreNotifications, 
+        loadingMore, 
+        hasMore 
+    } = useNotificationStore();
+    const { user } = useAuthStore();
     const [activeTab, setActiveTab] = useState('Semua');
 
     useEffect(() => {
-        fetchNotifications();
+        fetchNotifications(false, undefined, user?.camatId);
         // Polling is now handled globally in RootNavigator to ensure push notifications work on all screens
     }, []);
+
+    const handleLoadMore = () => {
+        if (!loading && !loadingMore && hasMore) {
+            loadMoreNotifications();
+        }
+    };
 
     // Group Notifications logic
     const sections = React.useMemo(() => {
         if (!notifications || notifications.length === 0) return [];
 
-        const sortedNotifications = [...notifications].sort((a, b) => {
+        let filteredList = [...notifications];
+        
+        // Filter for USER role: Only show EVENT and BERITA (News)
+        if (user?.role === Role.USER) {
+            filteredList = filteredList.filter(item => {
+                const cat = (item.category || '').toUpperCase();
+                return cat === 'EVENT' || cat === 'BERITA' || cat === 'SAMSAT';
+            });
+        }
+
+        const sortedNotifications = filteredList.sort((a, b) => {
             const dateA = new Date(a.createdAt || 0).getTime();
             const dateB = new Date(b.createdAt || 0).getTime();
             return dateB - dateA;
@@ -87,10 +114,16 @@ export default function NotificationScreen({ navigation }: any) {
             const titleLower = (item.judul || '').toLowerCase();
             const category = item.category || '';
 
-            if (category === 'EVENT' || titleLower.includes('layanan baru') || titleLower.includes('agenda')) {
-                icon = 'megaphone';
+            if (category === 'SAMSAT') {
+                icon = 'car';
+                iconColor = '#10B981'; // Green for official/service
+            } else if (category === 'BERITA') {
+                icon = 'newspaper';
                 iconColor = '#3B82F6'; // Blue
-            } else if (titleLower.includes('darurat') || titleLower.includes('peringatan') || titleLower.includes('bencana')) {
+            } else if (category === 'EVENT' || titleLower.includes('layanan baru') || titleLower.includes('agenda')) {
+                icon = 'calendar'; // Changed to calendar for Event
+                iconColor = '#8B5CF6'; // Purple
+            } else if (titleLower.includes('darurat') || titleLower.includes('peringatan') || titleLower.includes('bencana') || category === 'DARURAT') {
                 icon = 'warning';
                 iconColor = '#EF4444'; // Red
             } else if (titleLower.includes('tagihan') || titleLower.includes('pembayaran')) {
@@ -114,7 +147,9 @@ export default function NotificationScreen({ navigation }: any) {
                 time: formatTime(dateStr),
                 icon,
                 iconColor,
-                unread: !item.read // Assuming API has isRead, or default false
+                unread: !item.read, // Assuming API has isRead, or default false
+                category: item.category,
+                referenceId: item.referenceId
             });
         });
 
@@ -142,7 +177,17 @@ export default function NotificationScreen({ navigation }: any) {
     const renderItem = ({ item }: { item: any }) => (
         <TouchableOpacity
             style={[styles.itemContainer, item.unread && styles.itemUnread]}
-            onPress={() => navigation.navigate('NotificationDetail', { id: item.id })}
+            onPress={() => {
+                if (item.unread) {
+                    markAsRead(item.id);
+                }
+
+                if (item.category === 'PENGADUAN' && item.referenceId) {
+                    navigation.navigate('AdminPengaduanDetail', { id: item.referenceId });
+                } else {
+                    navigation.navigate('NotificationDetail', { id: item.id });
+                }
+            }}
         >
             <View style={styles.iconBox}>
                 <Icon name={item.icon} size={24} color={item.iconColor} />
@@ -167,6 +212,15 @@ export default function NotificationScreen({ navigation }: any) {
         </View>
     );
 
+    const renderFooter = () => {
+        if (!loadingMore) return <View style={{ height: 20 }} />;
+        return (
+            <View style={{ paddingVertical: 20 }}>
+                <ActivityIndicator size="small" color="#94A3B8" />
+            </View>
+        );
+    };
+
     return (
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -182,40 +236,12 @@ export default function NotificationScreen({ navigation }: any) {
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Notifikasi</Text>
                 </View>
-                <TouchableOpacity onPress={() => fetchNotifications()}>
+                <TouchableOpacity onPress={() => fetchNotifications(false, undefined, user?.camatId)}>
                     <MaterialIcon name="refresh" size={24} color="#94A3B8" />
                 </TouchableOpacity>
             </View>
 
-            {/* Tabs */}
-            <View style={styles.tabsWrapper}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContainer}>
-                    {tabs.map((tab) => (
-                        <TouchableOpacity
-                            key={tab.id}
-                            style={[
-                                styles.tab,
-                                activeTab === tab.id ? styles.activeTab : styles.inactiveTab
-                            ]}
-                            onPress={() => setActiveTab(tab.id)}
-                        >
-                            <Text
-                                style={[
-                                    styles.tabText,
-                                    activeTab === tab.id ? styles.activeTabText : styles.inactiveTabText
-                                ]}
-                            >
-                                {tab.label}
-                            </Text>
-                            {tab.count !== null && (
-                                <View style={[styles.badge, activeTab === tab.id ? styles.activeBadge : styles.inactiveBadge]}>
-                                    <Text style={[styles.badgeText, activeTab === tab.id ? styles.activeBadgeText : styles.inactiveBadgeText]}>{tab.count}</Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-            </View>
+            {/* ... Tabs ... */}
 
             {/* List */}
             {loading && sections.length === 0 ? (
@@ -232,7 +258,10 @@ export default function NotificationScreen({ navigation }: any) {
                     stickySectionHeadersEnabled={false}
                     showsVerticalScrollIndicator={false}
                     refreshing={loading}
-                    onRefresh={fetchNotifications}
+                    onRefresh={() => fetchNotifications(false, undefined, user?.camatId)}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.3}
+                    ListFooterComponent={renderFooter}
                     ListEmptyComponent={
                         <View style={{ padding: 40, alignItems: 'center' }}>
                             <Icon name="notifications-off-outline" size={48} color="#CBD5E1" />

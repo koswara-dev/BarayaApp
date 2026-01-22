@@ -19,7 +19,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
      * SIGN IN: Process a new token (received after successful login API call)
      * Stores token and refreshToken securely and extracts user data from JWT
      */
-    signIn: (token: string, refreshToken?: string) => {
+    signIn:async (token: string, refreshToken?: string) => {
         try {
             // Check if token is expired
             if (isTokenExpired(token)) {
@@ -51,6 +51,12 @@ const useAuthStore = create<AuthState>((set, get) => ({
                 const useUserStore = require('./userStore').default;
                 useUserStore.getState().fetchUserProfile(user.id);
             }
+
+            // Register FCM Token
+            // Using dynamic require to avoid potential circular dependency if helper imports store
+            const { notificationHelper } = require('../utils/notificationHelper');
+            await notificationHelper.registerFCMToken(token);
+
         } catch (error) {
             console.error('Sign in failed:', error);
             set({ user: null, token: null, refreshToken: null, isLoading: false });
@@ -142,7 +148,12 @@ const useAuthStore = create<AuthState>((set, get) => ({
      * REFRESH ACCESS TOKEN: Use refresh token to get a new access token
      */
     refreshAccessToken: async (): Promise<boolean> => {
-        const { refreshToken } = get();
+        let { refreshToken } = get();
+
+        // If not in state, try to get from storage
+        if (!refreshToken) {
+            refreshToken = await SecureStorage.getRefreshToken();
+        }
 
         if (!refreshToken) {
             console.log('Refresh token attempt aborted: No refresh token stored');
@@ -150,10 +161,10 @@ const useAuthStore = create<AuthState>((set, get) => ({
         }
 
         try {
-            const API_BASE_URL = "http://103.197.191.113:8080/api/v1";
+            const API_BASE_URL = "https://api-baraya.devsecops.my.id/api/v1";
             console.log('Attempting to refresh access token...');
 
-            const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

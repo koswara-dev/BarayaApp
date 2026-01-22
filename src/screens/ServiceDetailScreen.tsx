@@ -16,12 +16,15 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+import Markdown from 'react-native-markdown-display';
+
 import { RootStackParamList } from '../navigation/types';
-import { Feedback, FeedbackResponse } from '../types/service';
+import { Service, Feedback, FeedbackResponse } from '../types/service';
 import api, { getImageUrl } from '../config/api';
 import useAuthStore from '../stores/authStore';
 import useToastStore from '../stores/toastStore';
 import SkeletonShimmer from '../components/SkeletonShimmer';
+import { containsBadWords } from '../utils/badWords';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ServiceDetail'>;
 
@@ -43,24 +46,12 @@ const ReviewItemSkeleton = () => (
     </View>
 );
 
-const REQUIREMENTS = [
-    { id: 1, title: 'Kartu Tanda Penduduk (KTP)', desc: 'Scan KTP pemohon yang masih berlaku.', icon: 'card-outline' },
-    { id: 2, title: 'Bukti Kepemilikan Tanah', desc: 'Sertifikat Hak Milik (SHM) atau bukti legal lainnya.', icon: 'map-outline' },
-    { id: 3, title: 'Gambar Rencana Bangunan', desc: 'Denah, tampak, potongan, dan detail arsitektur.', icon: 'business-outline' },
-    { id: 4, title: 'Bukti Lunas PBB', desc: 'Bukti pembayaran PBB tahun terakhir.', icon: 'document-text-outline' },
-];
-
-const FLOW = [
-    { step: 1, title: 'Pengajuan Permohonan', desc: 'Pemohon mengisi formulir dan upload dokumen via aplikasi.' },
-    { step: 2, title: 'Verifikasi Administrasi', desc: 'Pemeriksaan kelengkapan dokumen oleh petugas front office.' },
-    { step: 3, title: 'Peninjauan Lapangan', desc: 'Tim teknis melakukan survei lokasi bangunan.' },
-    { step: 4, title: 'Perhitungan Retribusi', desc: 'Penetapan besaran biaya retribusi daerah.' },
-    { step: 5, title: 'Pembayaran', desc: 'Pemohon melakukan pembayaran retribusi.' },
-    { step: 6, title: 'Penerbitan SK', desc: 'Surat Keputusan Izin diterbitkan.', isDone: true },
-];
+interface ExtendedService extends Service {
+    image?: string;
+}
 
 export default function ServiceDetailScreen({ route, navigation }: Props) {
-    const { service } = route.params;
+    const { service } = route.params as { service: ExtendedService };
     const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
     const [loading, setLoading] = useState(true);
     const [expandedAbout, setExpandedAbout] = useState(false);
@@ -109,6 +100,11 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
 
         if (!myReview.trim()) {
             showToast("Silakan tulis ulasan Anda", "error");
+            return;
+        }
+
+        if (containsBadWords(myReview)) {
+            showToast("Ulasan mengandung kata-kata yang tidak pantas. Mohon gunakan bahasa yang sopan.", "error");
             return;
         }
 
@@ -177,9 +173,9 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
 
     return (
         <View style={styles.container}>
+            {/* ... (Header and Hero remain same) */}
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-            {/* Header with White Background */}
             <View style={styles.headerWhite}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Icon name="arrow-back" size={24} color="#0F172A" />
@@ -191,10 +187,10 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                {/* Hero Section */}
+                 {/* Hero Section */}
                 <View style={styles.heroContainer}>
                     <Image
-                        source={{ uri: service.image || 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&q=80&w=800' }}
+                        source={{ uri: service.urlGambar ? getImageUrl(service.urlGambar) : (service.image || 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&q=80&w=800') }}
                         style={styles.heroImage}
                     />
                     <View style={styles.heroOverlay}>
@@ -268,61 +264,15 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
                     </TouchableOpacity>
                 </View>
 
-                {/* Process Alur */}
-                <View style={styles.sectionContainer}>
-                    <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionTitle}>Alur Proses</Text>
-                        <View style={styles.stepsBadge}>
-                            <Text style={styles.stepsBadgeText}>6 Langkah</Text>
-                        </View>
+                {/* Informasi Detail (Markdown) - Replaces Alur & Persyaratan */}
+                {service.informasiDetail && (
+                    <View style={styles.sectionContainer}>
+                         <Text style={styles.sectionTitle}>Informasi Detail</Text>
+                         <Markdown style={markdownStyles}>
+                            {service.informasiDetail}
+                         </Markdown>
                     </View>
-
-                    <View style={styles.flowContainer}>
-                        {FLOW.map((item, index) => (
-                            <View key={item.step} style={styles.flowItem}>
-                                <View style={styles.flowLeft}>
-                                    <View style={[styles.flowDot, item.isDone && styles.flowDotDone]}>
-                                        {item.isDone ? <Icon name="checkmark" size={12} color="#FFF" /> : <Text style={styles.flowStepText}>{item.step}</Text>}
-                                    </View>
-                                    {index < FLOW.length - 1 && <View style={styles.flowLine} />}
-                                </View>
-                                <View style={styles.flowRight}>
-                                    <Text style={styles.flowTitle}>{item.title}</Text>
-                                    <Text style={styles.flowDesc}>{item.desc}</Text>
-                                </View>
-                            </View>
-                        ))}
-                    </View>
-                </View>
-
-                {/* Documents */}
-                <View style={styles.sectionContainer}>
-                    <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.sectionTitle}>Persyaratan Dokumen</Text>
-                        <View style={styles.wajibBadge}>
-                            <Text style={styles.wajibBadgeText}>WAJIB</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.docsList}>
-                        {REQUIREMENTS.map((doc) => (
-                            <View key={doc.id} style={styles.docCard}>
-                                <View style={styles.docIconBox}>
-                                    <Icon name={doc.icon} size={20} color="#FFC107" />
-                                </View>
-                                <View style={styles.docInfo}>
-                                    <Text style={styles.docTitle}>{doc.title}</Text>
-                                    <Text style={styles.docDesc}>{doc.desc}</Text>
-                                </View>
-                            </View>
-                        ))}
-                    </View>
-
-                    <TouchableOpacity style={styles.seeAllDocsBtn}>
-                        <Text style={styles.seeAllDocsText}>Lihat Semua Persyaratan</Text>
-                        <Icon name="chevron-down" size={18} color="#64748B" />
-                    </TouchableOpacity>
-                </View>
+                )}
 
                 {/* Reviews & Ratings */}
                 <View style={styles.sectionContainer}>
@@ -387,7 +337,7 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
                                 disabled={submitting || !myReview.trim() || myRating === 0}
                             >
                                 {submitting ? (
-                                    <ActivityIndicator size="small" color="#0F172A" />
+                                    <ActivityIndicator size="small" color="#FFC107" />
                                 ) : (
                                     <Text style={styles.tulisUlasanText}>Kirim Ulasan</Text>
                                 )}
@@ -824,19 +774,16 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     tulisUlasanBtn: {
-        width: '100%',
-        height: 48,
+        backgroundColor: '#3B82F6', // Blue background
+        paddingVertical: 12,
         borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        backgroundColor: '#FFF',
         alignItems: 'center',
-        justifyContent: 'center',
+        marginTop: 12,
     },
     tulisUlasanText: {
         fontSize: 14,
-        color: '#0F172A',
         fontWeight: '700',
+        color: '#FFC107', // Yellow text
     },
     reviewFormContainer: {
         width: '100%',
@@ -930,4 +877,38 @@ const styles = StyleSheet.create({
         color: '#0F172A',
         fontWeight: '800',
     },
+});
+
+const markdownStyles = StyleSheet.create({
+    body: {
+        fontSize: 14,
+        color: '#475569',
+        lineHeight: 22,
+    },
+    paragraph: {
+        marginBottom: 10,
+    },
+    heading1: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#0F172A',
+        marginBottom: 10,
+        marginTop: 10,
+    },
+    heading2: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#0F172A',
+        marginBottom: 8,
+        marginTop: 8,
+    },
+    list_item: {
+        flexDirection: 'row',
+        marginBottom: 4,
+    },
+    bullet_list_icon: {
+        fontSize: 14,
+        color: '#334155',
+        marginRight: 8,
+    }
 });

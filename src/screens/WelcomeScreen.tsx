@@ -7,8 +7,8 @@ import {
     StatusBar,
     Dimensions,
     Image,
-    SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 const { width, height } = Dimensions.get('window');
@@ -80,7 +80,7 @@ export default function WelcomeScreen({ navigation }: any) {
                 </TouchableOpacity>
 
                 <Text style={styles.footerText}>
-                    PEMERINTAH KABUPATEN KUNINGAN © 2024
+                    PEMERINTAH KABUPATEN KUNINGAN © 2026
                 </Text>
             </View>
 

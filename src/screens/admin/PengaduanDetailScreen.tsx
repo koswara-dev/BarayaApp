@@ -8,13 +8,17 @@ import {
     TouchableOpacity,
     Platform,
     StatusBar,
-    ActivityIndicator
+    ActivityIndicator,
+    Modal
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { getImageUrl } from '../../config/api';
 import usePengaduanStore from '../../stores/pengaduanStore';
 import useToastStore from '../../stores/toastStore';
+import useAuthStore from '../../stores/authStore';
+import { Role } from '../../types/auth';
+import IndustrialImagePicker from '../../components/Form/IndustrialImagePicker';
 
 const TimelineStep = ({ title, date, description, isActive, isLast }: any) => (
     <View style={styles.timelineRow}>
@@ -40,9 +44,17 @@ export default function AdminPengaduanDetailScreen() {
     const { updatePengaduanStatus, getPengaduanById, loading } = usePengaduanStore();
     const showToast = useToastStore(state => state.showToast);
     
+    // Auth Check
+    const user = useAuthStore(state => state.user);
+    const userRole = user?.role;
+    const canManage = [Role.ADMIN, Role.STAFF, Role.EXECUTIVE, Role.SUPERADMIN].includes(userRole as Role);
+    
     // Local state for fetched item if passed only ID
     const [fetchedItem, setFetchedItem] = useState<any>(null);
     const [isFetching, setIsFetching] = useState(false);
+    const [isCompleting, setIsCompleting] = useState(false);
+    const [completionPhoto, setCompletionPhoto] = useState<any>(null);
+    const [zoomImage, setZoomImage] = useState<string | null>(null);
 
     const list = usePengaduanStore(state => state.list);
     
@@ -52,26 +64,31 @@ export default function AdminPengaduanDetailScreen() {
         return list.find(i => String(i.id) === String(item?.id || id));
     }, [list, item, id]);
 
+    const loadData = async () => {
+        if (id) {
+                // Always fetch to ensure we have latest data (especially after update)
+                setIsFetching((prev) => !fetchedItem && prev); // Only show loading content on first load or explicit refresh
+                try {
+                    const data = await getPengaduanById(id);
+                    if (data) {
+                        setFetchedItem(data);
+                    }
+                } catch (e) {
+                    console.log('Fetch error', e);
+                } finally {
+                    setIsFetching(false);
+                }
+        }
+    };
+
     React.useEffect(() => {
-        const loadData = async () => {
-            if (!item && id && !listItem) {
-                 setIsFetching(true);
-                 try {
-                     const data = await getPengaduanById(id);
-                     if (data) {
-                          setFetchedItem(data);
-                     }
-                 } catch (e) {
-                     console.log('Fetch error', e);
-                 } finally {
-                     setIsFetching(false);
-                 }
-            }
-        };
-        loadData();
+        if (!item && id && !listItem && !fetchedItem) {
+             setIsFetching(true);
+             loadData();
+        }
     }, [item, id, listItem]);
 
-    if (isFetching) {
+    if (isFetching && !fetchedItem && !item && !listItem) {
         return (
             <View style={[styles.container, { justifyContent: 'center', alignItems: 'center'}]}>
                 <ActivityIndicator size="large" color="#3B82F6" />
@@ -94,16 +111,33 @@ export default function AdminPengaduanDetailScreen() {
     const isProcessed = ['diproses', 'selesai'].includes(displayItem.status?.toLowerCase());
     const isFinished = displayItem.status?.toLowerCase() === 'selesai';
     const isRejected = displayItem.status?.toLowerCase() === 'ditolak';
+    
+    // Check if user belongs to the same dinas as the report
+    // Note: SUPERADMIN might not have dinasId, or might have access to all. 
+    // Assuming strict request: "only same dinasId"
+    const isSameDinas = user?.dinasId && displayItem.dinasId && (Number(user.dinasId) === Number(displayItem.dinasId));
 
-    const handleUpdateStatus = async (newStatus: string) => {
+    const submitStatusUpdate = async (newStatus: string) => {
         try {
-            await updatePengaduanStatus(displayItem.id, newStatus);
+            // Updated to pass photo if available
+            await updatePengaduanStatus(displayItem.id, newStatus, displayItem, completionPhoto);
+            
             showToast(`Status berhasil diubah menjadi ${newStatus}`, 'success');
-            (navigation as any).setParams({ item: { ...displayItem, status: newStatus } });
+            
+            // Refresh data to show new photo/status
+            await loadData();
+
+            setIsCompleting(false);
+            setCompletionPhoto(null);
         } catch (error: any) {
             showToast(error.message || 'Gagal mengubah status', 'error');
         }
     };
+
+    // Keep handleUpdateStatus for compatibility if needed or just alias it
+    const handleUpdateStatus = submitStatusUpdate;
+
+
 
     return (
         <View style={styles.container}>
@@ -121,67 +155,120 @@ export default function AdminPengaduanDetailScreen() {
             <ScrollView contentContainerStyle={styles.scrollContent}>
 
                 {/* ADMIN CONTROL PANEL */}
-                <View style={styles.adminPanel}>
-                    <Text style={styles.adminPanelTitle}>Admin Control</Text>
-                    <Text style={styles.adminPanelDesc}>Ubah status laporan ini untuk memperbarui progres kepada warga.</Text>
-
-                    {!isFinished && (
-                        <View style={styles.adminBtnRow}>
-                            <TouchableOpacity
-                                style={[styles.adminStatusBtn, { backgroundColor: '#F59E0B' }]}
-                                onPress={() => handleUpdateStatus('diproses')}
-                            >
-                                <Icon name="time" size={16} color="#FFF" />
-                                <Text style={styles.adminStatusBtnText}>Proses</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[styles.adminStatusBtn, { backgroundColor: '#10B981' }]}
-                                onPress={() => handleUpdateStatus('selesai')}
-                            >
-                                <Icon name="checkmark" size={16} color="#FFF" />
-                                <Text style={styles.adminStatusBtnText}>Selesai</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[styles.adminStatusBtn, { backgroundColor: '#EF4444' }]}
-                                onPress={() => handleUpdateStatus('ditolak')}
-                            >
-                                <Icon name="close" size={16} color="#FFF" />
-                                <Text style={styles.adminStatusBtnText}>Tolak</Text>
-                            </TouchableOpacity>
+                {canManage && (
+                    <View style={styles.adminPanel}>
+                        <View style={styles.cardHeaderRow}>
+                            <Icon name="construct-outline" size={20} color="#2563EB" style={{ marginRight: 8 }} />
+                            <Text style={styles.adminPanelTitle}>Admin Control</Text>
                         </View>
-                    )}
-                    {loading && <ActivityIndicator size="small" color="#3B82F6" style={{ marginTop: 10 }} />}
-                </View>
+                        <Text style={styles.adminPanelDesc}>Ubah status laporan ini untuk memperbarui progres kepada warga.</Text>
+
+                        {/* Completion Form */}
+                        {isCompleting ? (
+                            <View style={{ marginBottom: 16 }}>
+                                <Text style={[styles.sectionTitle, { color: '#0F172A', marginBottom: 8 }]}>Bukti Penyelesaian</Text>
+                                <IndustrialImagePicker
+                                    photo={completionPhoto}
+                                    onPhotoSelected={setCompletionPhoto}
+                                    onPhotoRemoved={() => setCompletionPhoto(null)}
+                                />
+                                <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                                    <TouchableOpacity
+                                        style={[styles.adminStatusBtn, { backgroundColor: '#ECFDF5', borderColor: '#10B981', flex: 2 }]}
+                                        onPress={() => submitStatusUpdate('selesai')}
+                                    >
+                                        {loading ? (
+                                            <ActivityIndicator size="small" color="#059669" />
+                                        ) : (
+                                            <>
+                                                <Icon name="checkmark-done-circle" size={18} color="#059669" />
+                                                <Text style={[styles.adminStatusBtnText, { color: '#059669' }]}>KIRIM PENYELESAIAN</Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.adminStatusBtn, { backgroundColor: '#F1F5F9', borderColor: '#CBD5E1', flex: 1 }]}
+                                        onPress={() => {
+                                            setIsCompleting(false);
+                                            setCompletionPhoto(null);
+                                        }}
+                                        disabled={loading}
+                                    >
+                                        <Text style={[styles.adminStatusBtnText, { color: '#64748B' }]}>BATAL</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        ) : (
+                            !isFinished && (
+                                <View style={styles.adminBtnRow}>
+                                    <TouchableOpacity
+                                        style={[styles.adminStatusBtn, { backgroundColor: '#FFFBEB', borderColor: '#F59E0B' }]}
+                                        onPress={() => submitStatusUpdate('diproses')}
+                                    >
+                                        <Icon name="time-outline" size={18} color="#D97706" />
+                                        <Text style={[styles.adminStatusBtnText, { color: '#D97706' }]}>PROSES</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={[styles.adminStatusBtn, { backgroundColor: '#ECFDF5', borderColor: '#10B981', opacity: isSameDinas ? 1 : 0.5 }]}
+                                        onPress={() => {
+                                            if (isSameDinas) {
+                                                setIsCompleting(true);
+                                            } else {
+                                                showToast('Hanya petugas dinas terkait yang dapat menyelesaikan laporan ini', 'error');
+                                            }
+                                        }}
+                                    >
+                                        <Icon name="checkmark-done-outline" size={18} color="#059669" />
+                                        <Text style={[styles.adminStatusBtnText, { color: '#059669' }]}>SELESAI</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={[styles.adminStatusBtn, { backgroundColor: '#FEF2F2', borderColor: '#EF4444' }]}
+                                        onPress={() => submitStatusUpdate('ditolak')}
+                                    >
+                                        <Icon name="close-circle-outline" size={18} color="#DC2626" />
+                                        <Text style={[styles.adminStatusBtnText, { color: '#DC2626' }]}>TOLAK</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )
+                        )}
+                        
+                        {loading && !isCompleting && <ActivityIndicator size="small" color="#3B82F6" style={{ marginTop: 10 }} />}
+                    </View>
+                )}
 
                 <View style={styles.statusSection}>
-                    <Text style={styles.statusLabel}>Status Saat Ini</Text>
                     <View style={[styles.statusBadge,
                     isFinished ? { backgroundColor: '#ECFDF5' } :
                         isRejected ? { backgroundColor: '#FEF2F2' } :
                             { backgroundColor: '#FFFBEB' }
                     ]}>
                         <Icon
-                            name={isFinished ? "checkmark-circle" : isRejected ? "close-circle" : "time"}
+                            name={isFinished ? "checkmark-circle" : isRejected ? "close-circle" : "time-outline"}
                             size={20}
                             color={isFinished ? "#10B981" : isRejected ? "#EF4444" : "#F59E0B"}
                         />
                         <Text style={[styles.statusText,
-                        isFinished ? { color: '#10B981' } :
-                            isRejected ? { color: '#EF4444' } :
-                                { color: '#F59E0B' }
+                        isFinished ? { color: '#059669' } :
+                            isRejected ? { color: '#DC2626' } :
+                                { color: '#D97706' }
                         ]}>
                             {displayItem.status?.toUpperCase() || 'DIAJUKAN'}
                         </Text>
                     </View>
                     <Text style={styles.ticketId}>ID Laporan: #{displayItem.id}</Text>
+                    {displayItem.updatedByNama && (
+                         <Text style={[styles.ticketId, { marginTop: 4, color: '#64748B' }]}>
+                             Updated by: {displayItem.updatedByNama}
+                         </Text>
+                    )}
                 </View>
 
                 <View style={styles.section}>
                     <View style={styles.userHead}>
                         <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>{displayItem.userNama?.charAt(0) || 'P'}</Text>
+                            <Icon name="person" size={20} color="#FFFFFF" />
                         </View>
                         <View>
                             <Text style={styles.userName}>{displayItem.userNama}</Text>
@@ -191,62 +278,108 @@ export default function AdminPengaduanDetailScreen() {
                 </View>
 
                 <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Instansi Tujuan</Text>
-                    <View style={styles.dinasRow}>
-                        <View style={styles.dinasIcon}>
-                            <Icon name="business" size={24} color="#3B82F6" />
+                    <View style={styles.cardHeaderRow}>
+                        <View style={styles.iconBox}>
+                            <Icon name="business-outline" size={20} color="#3B82F6" />
                         </View>
-                        <Text style={styles.dinasName}>{displayItem.dinasNama}</Text>
+                        <Text style={styles.sectionTitle}>Instansi Tujuan</Text>
                     </View>
+                    <Text style={styles.dinasName}>{displayItem.dinasNama}</Text>
                 </View>
 
                 <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Isi Laporan</Text>
+                    <View style={styles.cardHeaderRow}>
+                        <View style={[styles.iconBox, { backgroundColor: '#FFFBEB' }]}>
+                            <Icon name="chatbox-ellipses-outline" size={20} color="#F59E0B" />
+                        </View>
+                        <Text style={styles.sectionTitle}>Isi Laporan</Text>
+                    </View>
+                    
                     <View style={styles.quoteContainer}>
-                        <Icon name="chatbox-ellipses" size={24} color="#F59E0B" style={styles.quoteIcon} />
                         <Text style={styles.messageText}>{displayItem.pesan}</Text>
                     </View>
 
                     {displayItem.urlFoto && (
-                        <View style={styles.imageContainer}>
+                        <TouchableOpacity
+                            style={styles.imageContainer}
+                            onPress={() => setZoomImage(getImageUrl(displayItem.urlFoto))}
+                        >
                             <Image
                                 source={{ uri: getImageUrl(displayItem.urlFoto) }}
                                 style={styles.evidenceImage}
                                 resizeMode="cover"
                             />
                             <View style={styles.imageCaption}>
-                                <Icon name="image" size={12} color="#FFFFFF" />
-                                <Text style={styles.imageCaptionText}>Bukti Foto Terlampir</Text>
+                                <Icon name="image-outline" size={12} color="#FFFFFF" />
+                                <Text style={styles.imageCaptionText}>Bukti Foto (Ketuk untuk perbesar)</Text>
                             </View>
-                        </View>
+                        </TouchableOpacity>
+                    )}
+
+                    {displayItem.urlFotoSelesai && (
+                        <TouchableOpacity
+                            style={[styles.imageContainer, { marginTop: 16 }]}
+                            onPress={() => setZoomImage(getImageUrl(displayItem.urlFotoSelesai))}
+                        >
+                            <Image
+                                source={{ uri: getImageUrl(displayItem.urlFotoSelesai) }}
+                                style={styles.evidenceImage}
+                                resizeMode="cover"
+                            />
+                            <View style={[styles.imageCaption, { backgroundColor: 'rgba(16, 185, 129, 0.9)' }]}>
+                                <Icon name="checkmark-circle" size={12} color="#FFFFFF" />
+                                <Text style={styles.imageCaptionText}>Bukti Penyelesaian (Ketuk untuk perbesar)</Text>
+                            </View>
+                        </TouchableOpacity>
                     )}
                 </View>
 
                 <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Riwayat Penanganan (Tracking)</Text>
+                    <View style={styles.cardHeaderRow}>
+                        <View style={[styles.iconBox, { backgroundColor: '#F1F5F9' }]}>
+                            <Icon name="git-network-outline" size={20} color="#64748B" />
+                        </View>
+                        <Text style={styles.sectionTitle}>Tracking</Text>
+                    </View>
                     <View style={styles.timelineContainer}>
                         <TimelineStep
-                            title="Laporan Diterima Sistem"
-                            date={new Date(displayItem.createdAt).toLocaleString()}
+                            title="Laporan Diterima"
+                            date={new Date(displayItem.createdAt).toLocaleDateString()}
                             isActive={isSubmitted}
-                            description="Laporan Anda telah berhasil masuk ke sistem kami untuk diverifikasi."
+                            description="Verifikasi sistem berhasil."
                         />
                         <TimelineStep
-                            title="Disposisi ke Dinas Terkait"
-                            date={isProcessed ? "Sedang ditinjau petugas" : null}
+                            title="Disposisi Dinas/Proses"
+                            date={isProcessed ? "Sedang ditinjau" : null}
                             isActive={isProcessed}
-                            description="Petugas dinas sedang meninjau dan menindaklanjuti laporan ini."
+                            description="Tindak lanjut oleh petugas."
                         />
                         <TimelineStep
-                            title="Penanganan Selesai"
+                            title="Selesai"
                             isActive={isFinished}
                             isLast
-                            description={isFinished ? "Laporan telah selesai ditangani. Terima kasih atas masukan Anda." : "Menunggu tindak lanjut dinas."}
+                            description={isFinished ? `Laporan ditutup.${displayItem.updatedByNama ? ' Oleh: ' + displayItem.updatedByNama : ''}` : "Menunggu penyelesaian."}
                         />
                     </View>
                 </View>
 
             </ScrollView>
+
+            {/* Image Zoom Modal */}
+            <Modal visible={!!zoomImage} transparent={true} onRequestClose={() => setZoomImage(null)}>
+                <View style={styles.zoomContainer}>
+                    <TouchableOpacity style={styles.zoomCloseBtn} onPress={() => setZoomImage(null)}>
+                        <Icon name="close" size={30} color="#FFF" />
+                    </TouchableOpacity>
+                    {zoomImage && (
+                        <Image
+                            source={{ uri: zoomImage }}
+                            style={styles.zoomImage}
+                            resizeMode="contain"
+                        />
+                    )}
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -517,5 +650,38 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 12,
         fontWeight: '700',
+    },
+    cardHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    iconBox: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 10,
+    },
+    // Zoom Styles
+    zoomContainer: {
+        flex: 1,
+        backgroundColor: '#000',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    zoomImage: {
+        width: '100%',
+        height: '100%',
+    },
+    zoomCloseBtn: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 50 : 20,
+        right: 20,
+        zIndex: 10,
+        padding: 10,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 25,
     }
 });

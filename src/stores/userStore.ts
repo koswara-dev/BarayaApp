@@ -24,19 +24,42 @@ interface UserProfile {
 
 interface UserState {
     profile: UserProfile | null;
+    searchResults: UserProfile[]; // Added for search results
     loading: boolean;
     error: string | null;
 
     fetchUserProfile: (id: number | string) => Promise<void>;
+    searchUsers: (query: string) => Promise<void>; // New method
     uploadUserPhoto: (id: number | string, photoAsset: any) => Promise<boolean>;
+    updateUserProfile: (id: number | string, data: Partial<UserProfile>) => Promise<boolean>;
     changeUserPassword: (id: number | string, passwordData: { current: string; new: string }) => Promise<boolean>;
     clearError: () => void;
 }
 
 const useUserStore = create<UserState>((set) => ({
     profile: null,
+    searchResults: [],
     loading: false,
     error: null,
+
+    searchUsers: async (query: string) => {
+        set({ loading: true, error: null });
+        try {
+            const params = { fullName: query, size: 20 };
+            const res = await api.get('/users', { params });
+            if (res.data.success) {
+                set({ searchResults: res.data.data.content || [] });
+            } else {
+                set({ searchResults: [] });
+            }
+        } catch (error: any) {
+            console.log('Search users error:', error);
+            set({ searchResults: [] });
+            // Don't set global error to avoid blocking UI, just show empty list
+        } finally {
+            set({ loading: false });
+        }
+    },
 
     fetchUserProfile: async (id) => {
         set({ loading: true, error: null });
@@ -191,6 +214,48 @@ const useUserStore = create<UserState>((set) => ({
         } catch (error: any) {
             // console.error('Upload photo error:', error);
             set({ error: error.message || 'Terjadi kesalahan saat mengunggah foto' });
+            return false;
+        } finally {
+            set({ loading: false });
+        }
+    },
+
+    updateUserProfile: async (id, data) => {
+        set({ loading: true, error: null });
+        try {
+            const token = useAuthStore.getState().token;
+            if (!token) throw new Error("Authentication required");
+
+            const parts = Object.keys(data).map((key) => ({
+                name: key,
+                data: String(data[key as keyof UserProfile] || '')
+            }));
+
+            // Use multipart/form-data via ReactNativeBlobUtil
+            const response = await ReactNativeBlobUtil.fetch('PUT', `${API_BASE_URL}/users/${id}`, {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data',
+            }, parts);
+
+            const responseText = await response.text();
+            let responseData;
+            try {
+                responseData = JSON.parse(responseText);
+            } catch (e) {
+                responseData = { success: false, message: 'Invalid response' };
+            }
+
+            if (response.info().status >= 200 && response.info().status < 300 && responseData.success) {
+                set((state) => ({
+                    profile: state.profile ? { ...state.profile, ...data } : null
+                }));
+                return true;
+            } else {
+                set({ error: responseData.message || 'Gagal memperbarui profil' });
+                return false;
+            }
+        } catch (error: any) {
+            set({ error: error.message || 'Terjadi kesalahan saat memperbarui profil' });
             return false;
         } finally {
             set({ loading: false });

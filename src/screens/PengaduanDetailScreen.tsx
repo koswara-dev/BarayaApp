@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -7,7 +7,8 @@ import {
     Image,
     TouchableOpacity,
     Platform,
-    StatusBar
+    StatusBar,
+    Modal
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -68,6 +69,8 @@ export default function PengaduanDetailScreen() {
     const isProcessed = ['diproses', 'selesai'].includes(displayItem.status?.toLowerCase());
     const isFinished = displayItem.status?.toLowerCase() === 'selesai';
     const isRejected = displayItem.status?.toLowerCase() === 'ditolak';
+
+    const [zoomImage, setZoomImage] = useState<string | null>(null);
 
     return (
         <View style={styles.container}>
@@ -136,7 +139,10 @@ export default function PengaduanDetailScreen() {
                     </View>
 
                     {displayItem.urlFoto && (
-                        <View style={styles.imageContainer}>
+                        <TouchableOpacity 
+                            style={styles.imageContainer}
+                            onPress={() => setZoomImage(getImageUrl(displayItem.urlFoto))}
+                        >
                             <Image
                                 source={{ uri: getImageUrl(displayItem.urlFoto) }}
                                 style={styles.evidenceImage}
@@ -144,9 +150,9 @@ export default function PengaduanDetailScreen() {
                             />
                             <View style={styles.imageCaption}>
                                 <Icon name="image" size={12} color="#FFFFFF" />
-                                <Text style={styles.imageCaptionText}>Bukti Foto Terlampir</Text>
+                                <Text style={styles.imageCaptionText}>Bukti Foto (Ketuk untuk perbesar)</Text>
                             </View>
-                        </View>
+                        </TouchableOpacity>
                     )}
                 </View>
 
@@ -175,6 +181,22 @@ export default function PengaduanDetailScreen() {
                 </View>
 
             </ScrollView>
+
+             {/* Image Zoom Modal */}
+             <Modal visible={!!zoomImage} transparent={true} onRequestClose={() => setZoomImage(null)}>
+                <View style={styles.zoomContainer}>
+                    <TouchableOpacity style={styles.zoomCloseBtn} onPress={() => setZoomImage(null)}>
+                        <Icon name="close" size={30} color="#FFF" />
+                    </TouchableOpacity>
+                    {zoomImage && (
+                        <Image 
+                            source={{ uri: zoomImage }} 
+                            style={styles.zoomImage} 
+                            resizeMode="contain" 
+                        />
+                    )}
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -429,5 +451,25 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#64748B',
         lineHeight: 20,
+    },
+    // Zoom Styles
+    zoomContainer: {
+        flex: 1,
+        backgroundColor: '#000',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    zoomImage: {
+        width: '100%',
+        height: '100%',
+    },
+    zoomCloseBtn: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 50 : 20,
+        right: 20,
+        zIndex: 10,
+        padding: 10,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 25,
     }
 });

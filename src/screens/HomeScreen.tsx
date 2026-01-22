@@ -9,21 +9,30 @@ import {
   Image,
   Dimensions,
   StatusBar,
-  SafeAreaView,
   Platform,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  Linking
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import useAuthStore from '../stores/authStore';
+import { Role } from '../types/auth';
 import useUserStore from '../stores/userStore';
 import useLayananStore from '../stores/layananStore';
-import { getImageUrl } from '../config/api';
+import useEventStore from '../stores/eventStore';
+import useNotificationStore from '../stores/notificationStore';
+import usePengaturanStore from '../stores/pengaturanStore';
+import useBeritaStore from '../stores/beritaStore';
+import api, { getImageUrl } from '../config/api';
 import { useDebounce } from 'use-debounce';
 
 import GetLocation from 'react-native-get-location';
+import { TourGuideProvider, TourGuideZone, useTourGuideController } from 'rn-tourguide';
+import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 
 const { width } = Dimensions.get('window');
 
@@ -44,10 +53,29 @@ const getServiceIcon = (name: string, category?: string) => {
   return 'grid-outline';
 };
 
-export default function HomeScreen() {
+const HomeScreenContent = () => {
+  const { start, canStart, stop, eventEmitter } = useTourGuideController();
   const navigation = useNavigation<any>();
   const user = useAuthStore((state) => state.user);
   const { profile, fetchUserProfile } = useUserStore();
+
+  useEffect(() => {
+    if (canStart) {
+      const checkTour = async () => {
+        try {
+          const hasSeen = await AsyncStorage.getItem('hasSeenTour');
+          if (!hasSeen) {
+            start();
+            await AsyncStorage.setItem('hasSeenTour', 'true');
+          }
+        } catch (e) {
+          // ignore
+          start();
+        }
+      };
+      checkTour();
+    }
+  }, [canStart]);
 
   const {
     layanan: featuredServices,
@@ -58,11 +86,19 @@ export default function HomeScreen() {
     searchLayanan
   } = useLayananStore();
 
+  const { events, loading: isLoadingEvents, fetchEvents } = useEventStore();
+  const { list: beritaList, loading: isLoadingBerita, fetchBerita } = useBeritaStore();
   const [weather, setWeather] = useState({ temp: '--', icon: 'partly-sunny', city: 'Mencari...' });
   const [activeBanner, setActiveBanner] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [debouncedSearch] = useDebounce(searchQuery, 300); // Fery fast debounce
+  const [debouncedSearch] = useDebounce(searchQuery, 300); // Very fast debounce
+
+
+  // Hook moved here to preserve hook order during hot reload
+  const { notifications, startPolling, stopPolling } = useNotificationStore();
+  const { pengaturan, fetchPengaturan } = usePengaturanStore();
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -70,11 +106,16 @@ export default function HomeScreen() {
     }
   }, [searchQuery]);
 
+
+
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
       fetchWeather(),
-      fetchLayanan({ size: 8 })
+      fetchLayanan({ size: 8 }),
+      fetchEvents({ size: 5 }),
+      fetchBerita({ page: 0 }),
+      fetchPengaturan()
     ]);
     setRefreshing(false);
   };
@@ -85,6 +126,29 @@ export default function HomeScreen() {
 
   const fetchWeather = async () => {
     try {
+      let permissionResult;
+      
+      if (Platform.OS === 'android') {
+        permissionResult = await check(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
+        if (permissionResult === RESULTS.DENIED) {
+          permissionResult = await request(PERMISSIONS.ANDROID.ACCESS_FINE_LOCATION);
+        }
+      } else {
+        permissionResult = await check(PERMISSIONS.IOS.LOCATION_WHEN_IN_USE);
+        if (permissionResult === RESULTS.DENIED) {
+          permissionResult = await request(PERMISSIONS.IOS.LOCATION_WHEN_IN_USE);
+        }
+      }
+
+      if (permissionResult !== RESULTS.GRANTED && permissionResult !== RESULTS.LIMITED) {
+        setWeather({
+            temp: '--°C',
+            icon: 'partly-sunny',
+            city: 'Izin Lokasi Ditolak'
+        });
+        return;
+      }
+
       const location = await GetLocation.getCurrentPosition({
         enableHighAccuracy: true,
         timeout: 15000,
@@ -93,7 +157,11 @@ export default function HomeScreen() {
       const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true`);
       const weatherData = await weatherRes.json();
 
-      const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.latitude}&lon=${location.longitude}`);
+      const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.latitude}&lon=${location.longitude}`, {
+        headers: {
+            'User-Agent': 'BarayaApp/1.0.0'
+        }
+      });
       const geoData = await geoRes.json();
       const city = geoData.address.city || geoData.address.town || geoData.address.village || geoData.address.county || 'Kuningan';
 
@@ -130,9 +198,16 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchWeather();
     fetchLayanan({ size: 8 });
+    fetchEvents({ size: 5 });
+    fetchBerita({ page: 0 });
+    fetchPengaturan();
+    
+    startPolling();
+    return () => stopPolling();
   }, []); // Run once on mount
 
   const banners = [
+    // ... (existing banners)
     {
       id: 1,
       title: 'KTP Digital Segera Hadir\ndi Kuningan',
@@ -189,17 +264,40 @@ export default function HomeScreen() {
         {/* Big Header Section */}
         <View style={styles.bigHeaderContainer}>
           <Image
-            source={require('../assets/banner.png')}
+            source={pengaturan?.urlBannerMobile ? { uri: getImageUrl(pengaturan.urlBannerMobile) } : require('../assets/banner.png')}
             style={styles.headerBackground}
             resizeMode="cover"
           />
           <View style={styles.headerOverlay}>
             <View style={styles.headerTopRow}>
-              <View />
-              <TouchableOpacity onPress={() => navigation.navigate('Notifikasi')} style={styles.notifButton}>
-                <Icon name="notifications" size={24} color="#334155" />
-                <View style={styles.notifBadge} />
-              </TouchableOpacity>
+              {(user?.role === Role.SUPERADMIN || user?.role === Role.EXECUTIVE || user?.role === Role.ADMIN) ? (
+                <TouchableOpacity onPress={() => navigation.navigate('AdminMain')} style={styles.notifButton}>
+                  <Icon name="swap-horizontal" size={24} color="#334155" />
+                </TouchableOpacity>
+              ) : (
+                <View />
+              )}
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity onPress={() => start()} style={styles.notifButton}>
+                    <Icon name="help-circle-outline" size={24} color="#334155" />
+                </TouchableOpacity>
+                <TourGuideZone
+                    zone={1}
+                    text="Cek notifikasi terbaru dan info darurat di sini"
+                    borderRadius={20}
+                >
+                    <TouchableOpacity onPress={() => navigation.navigate('Notifikasi')} style={styles.notifButton}>
+                        <Icon name="notifications" size={24} color="#334155" />
+                        {unreadCount > 0 && (
+                        <View style={styles.notifBadge}>
+                            <Text style={styles.notifBadgeText}>
+                            {unreadCount > 9 ? '9+' : unreadCount}
+                            </Text>
+                        </View>
+                        )}
+                    </TouchableOpacity>
+                </TourGuideZone>
+              </View>
             </View>
           </View>
         </View>
@@ -208,25 +306,32 @@ export default function HomeScreen() {
         <View style={{ zIndex: 100 }}>
           {/* Search Bar - Floating */}
           <View style={styles.searchContainerFloating}>
-            <Icon name="search-outline" size={20} color="#FFC107" style={{ marginRight: 8 }} />
-            <TextInput
-              placeholder="Cari Layanan di Kuningan..."
-              placeholderTextColor="#94A3B8"
-              style={styles.floatingSearchInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {isSearching && <ActivityIndicator size="small" color="#FFC107" style={{ marginRight: 8 }} />}
-            {searchQuery.length > 0 && !isSearching && (
-              <TouchableOpacity onPress={() => {
-                setSearchQuery('');
-                useLayananStore.getState().searchLayanan('');
-              }}>
-                <Icon name="close-circle" size={18} color="#94A3B8" />
-              </TouchableOpacity>
-            )}
+             <TourGuideZone
+                zone={2}
+                text="Cari layanan apapun dengan cepat di sini"
+                borderRadius={25}
+                style={{flex: 1, flexDirection: 'row', alignItems: 'center'}}
+             >
+                <Icon name="search-outline" size={20} color="#FFC107" style={{ marginRight: 8 }} />
+                <TextInput
+                placeholder="Cari Layanan di Kuningan..."
+                placeholderTextColor="#94A3B8"
+                style={styles.floatingSearchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+                />
+                {isSearching && <ActivityIndicator size="small" color="#FFC107" style={{ marginRight: 8 }} />}
+                {searchQuery.length > 0 && !isSearching && (
+                <TouchableOpacity onPress={() => {
+                    setSearchQuery('');
+                    useLayananStore.getState().searchLayanan('');
+                }}>
+                    <Icon name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+                )}
+             </TourGuideZone>
           </View>
 
           {/* Search Results Dropdown/List */}
@@ -267,7 +372,12 @@ export default function HomeScreen() {
         </View>
 
         {/* Quick Start Menu Grid */}
-        <View style={styles.quickStartContainer}>
+        <TourGuideZone
+            zone={3}
+            text="Akses cepat ke layanan penting"
+            borderRadius={12}
+            style={styles.quickStartContainer}
+        >
           <View style={styles.menuRow}>
             <MenuItem
               icon="megaphone"
@@ -277,20 +387,21 @@ export default function HomeScreen() {
             />
             <MenuItem
               icon="card"
-              label="KTP & KK"
+              label="Samsat Keliling"
               color="#3B82F6"
-              onPress={() => { }}
+              onPress={() => navigation.navigate('SamsatKeliling')}
             />
             <MenuItem
               icon="medical"
               label="Ambulans"
               color="#EF4444"
-              onPress={() => navigation.jumpTo('Darurat')}
+              onPress={() => navigation.navigate('Layanan', { query: 'ambulans' })} // Use 'ambulans' standard term
             />
             <MenuItem
               icon="map"
               label="Peta"
               color="#8B5CF6"
+              onPress={() => Linking.openURL('https://www.google.com/maps/search/?api=1&query=-6.9613261,108.4701179')}
             />
           </View>
           <View style={[styles.menuRow, { marginTop: 16 }]}>
@@ -298,17 +409,25 @@ export default function HomeScreen() {
               icon="newspaper"
               label="Berita"
               color="#10B981"
-              onPress={() => navigation.navigate('Berita')}
+              onPress={() => navigation.navigate('Webview', { 
+                url: 'https://kuningankab.go.id/home/',
+                title: 'Portal Berita Kuningan'
+              })}
             />
             <MenuItem
               icon="calculator"
               label="Pajak"
               color="#F59E0B"
+              onPress={() => navigation.navigate('Webview', { 
+                url: 'https://bapenda.jabarprov.go.id/samsat-mobile-jawa-barat-sambara',
+                title: 'Info Pajak'
+              })}
             />
             <MenuItem
               icon="bus"
               label="Transportasi"
               color="#6366F1"
+              onPress={() => navigation.navigate('Layanan', { query: 'transportasi' })}
             />
             <MenuItem
               icon="grid"
@@ -317,7 +436,7 @@ export default function HomeScreen() {
               onPress={() => navigation.jumpTo('Layanan')}
             />
           </View>
-        </View>
+        </TourGuideZone>
 
         {/* Layanan Section Header */}
         <View style={styles.sectionHeaderRow}>
@@ -330,7 +449,12 @@ export default function HomeScreen() {
         </View>
 
         {/* Featured Services - Horizontal Scroll */}
-        <View style={styles.featuredGridContainer}>
+        <TourGuideZone
+            zone={4}
+            text="Temukan layanan populer lainnya di sini"
+            borderRadius={10}
+            style={styles.featuredGridContainer}
+        >
           {isLoadingFeatured ? (
             <View style={{ height: 100, justifyContent: 'center', alignItems: 'center' }}>
               <ActivityIndicator color="#FFC107" />
@@ -357,7 +481,49 @@ export default function HomeScreen() {
               ))}
             </ScrollView>
           )}
-        </View>
+        </TourGuideZone>
+
+        {/* Pimpinan Daerah / Bupati Section */}
+        {pengaturan && (pengaturan.urlFotoBupati || pengaturan.urlFotoWakilBupati) && (
+            <View style={styles.pimpinanSection}>
+                <Text style={styles.sectionHeaderTitle}>Pimpinan Daerah</Text>
+                <View style={styles.pimpinanContainer}>
+                    {/* Bupati */}
+                    <View style={styles.pimpinanCard}>
+                        <View style={styles.pimpinanImageWrapper}>
+                           <Image 
+                                source={pengaturan.urlFotoBupati ? { uri: getImageUrl(pengaturan.urlFotoBupati) } : { uri: 'https://ui-avatars.com/api/?name=' + (pengaturan.namaBupati || 'Bupati') }} 
+                                style={styles.pimpinanImage}
+                                resizeMode="cover"
+                            />
+                        </View>
+                        <View style={styles.pimpinanInfo}>
+                            <Text style={styles.jabatanLabel}>BUPATI</Text>
+                            <Text style={styles.pimpinanName} numberOfLines={2}>
+                                {pengaturan.namaBupati || 'Nama Bupati'}
+                            </Text>
+                        </View>
+                    </View>
+                    
+                    {/* Wakil Bupati */}
+                    <View style={styles.pimpinanCard}>
+                         <View style={styles.pimpinanImageWrapper}>
+                           <Image 
+                                source={pengaturan.urlFotoWakilBupati ? { uri: getImageUrl(pengaturan.urlFotoWakilBupati) } : { uri: 'https://ui-avatars.com/api/?name=' + (pengaturan.namaWakilBupati || 'Wakil') }} 
+                                style={styles.pimpinanImage}
+                                resizeMode="cover"
+                            />
+                        </View>
+                        <View style={styles.pimpinanInfo}>
+                            <Text style={styles.jabatanLabel}>WAKIL BUPATI</Text>
+                           <Text style={styles.pimpinanName} numberOfLines={2}>
+                                {pengaturan.namaWakilBupati || 'Nama Wakil'}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
+            </View>
+        )}
 
         {/* Info/Widgets - Replicating 'Lencana/JakOne' style roughly */}
         <View style={styles.widgetsContainer}>
@@ -372,7 +538,13 @@ export default function HomeScreen() {
 
           <View style={styles.widgetBox}>
             <Text style={styles.widgetTitle}>Antrian RS</Text>
-            <TouchableOpacity style={styles.widgetButton}>
+            <TouchableOpacity 
+              style={styles.widgetButton}
+              onPress={() => navigation.navigate('Webview', { 
+                url: 'https://daftar.rsud45.com/',
+                title: 'Antrian RSUD 45'
+              })}
+            >
               <Text style={styles.widgetButtonText}>Daftar Online</Text>
             </TouchableOpacity>
           </View>
@@ -380,7 +552,7 @@ export default function HomeScreen() {
 
         {/* Banner Section - Moved to Bottom */}
         <View style={styles.bottomBannerSection}>
-          <Text style={styles.sectionHeaderTitle}>Informasi Terkini</Text>
+          <Text style={styles.sectionHeaderTitle}>Berita Terkini</Text>
           <View style={styles.bannerContainer}>
             <ScrollView
               horizontal
@@ -389,25 +561,54 @@ export default function HomeScreen() {
               onScroll={handleScroll}
               scrollEventThrottle={16}
             >
-              {banners.map((banner) => (
-                <View key={banner.id} style={[styles.bannerCard, { backgroundColor: banner.backgroundColor, width: width - 32 }]}>
+              {beritaList.slice(0, 5).map((item: any) => (
+                <View key={item.id} style={[styles.bannerCard, { width: width - 32, backgroundColor: '#1E293B', overflow: 'hidden' }]}>
+                    {/* Background Image */}
+                    <Image 
+                        source={item.urlGambar ? { uri: getImageUrl(item.urlGambar) } : require('../assets/banner.png')}
+                        style={StyleSheet.absoluteFillObject}
+                        resizeMode="cover"
+                    />
+                    {/* Dark Overlay */}
+                   <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.5)' }]} />
+
                   <View style={styles.bannerContent}>
                     <View style={styles.bannerLabelContainer}>
-                      <Text style={styles.bannerLabel}>{banner.label}</Text>
+                      <Text style={styles.bannerLabel}>{item.dinasKode || 'Informasi'}</Text>
                     </View>
-                    <Text style={styles.bannerTitle}>{banner.title}</Text>
-                    <TouchableOpacity style={styles.bannerButton}>
+                    <Text style={styles.bannerTitle} numberOfLines={2}>{item.judul}</Text>
+                    <TouchableOpacity 
+                        style={styles.bannerButton}
+                        onPress={() => navigation.navigate('AdminBeritaDetail', { item })}
+                    >
                       <Text style={styles.bannerButtonText}>Selengkapnya</Text>
                       <Icon name="arrow-forward" size={14} color="#FFFFFF" />
                     </TouchableOpacity>
                   </View>
-                  <View style={styles.bannerImageOverlay} />
                 </View>
               ))}
+              {beritaList.length === 0 && (
+                   // Fallback to static if no news
+                   banners.map((banner) => (
+                    <View key={banner.id} style={[styles.bannerCard, { backgroundColor: banner.backgroundColor, width: width - 32 }]}>
+                      <View style={styles.bannerContent}>
+                        <View style={styles.bannerLabelContainer}>
+                          <Text style={styles.bannerLabel}>{banner.label}</Text>
+                        </View>
+                        <Text style={styles.bannerTitle}>{banner.title}</Text>
+                        <TouchableOpacity style={styles.bannerButton}>
+                          <Text style={styles.bannerButtonText}>Selengkapnya</Text>
+                          <Icon name="arrow-forward" size={14} color="#FFFFFF" />
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.bannerImageOverlay} />
+                    </View>
+                  ))
+              )}
             </ScrollView>
 
             <View style={styles.paginationDots}>
-              {banners.map((_, index) => (
+              {(beritaList.length > 0 ? beritaList.slice(0, 5) : banners).map((_, index) => (
                 <View
                   key={index}
                   style={[
@@ -420,48 +621,53 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* News Section / Berita Hari Ini */}
+        {/* Event Section / Event Terkini */}
         <View style={styles.newsSection}>
-          <Text style={styles.sectionHeaderTitle}>Berita Hari Ini</Text>
+          <Text style={styles.sectionHeaderTitle}>Event Terkini</Text>
 
-          {[
-            {
-              id: 1,
-              title: "Pemkab Kuningan Raih Penghargaan SPBE Terbaik 2024",
-              date: "20 Des 2024",
-              category: "Pemerintahan",
-              image: "https://images.unsplash.com/photo-1577962917302-cd874c4e31d2?auto=format&fit=crop&q=80&w=400"
-            },
-            {
-              id: 2,
-              title: "Festival Durian Perwata Siap Digelar Minggu Depan",
-              date: "19 Des 2024",
-              category: "Wisata",
-              image: "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&q=80&w=400"
-            },
-            {
-              id: 3,
-              title: "Perbaikan Jalan Cipari-Cisantana Selesai 100%",
-              date: "18 Des 2024",
-              category: "Infrastruktur",
-              image: "https://images.unsplash.com/photo-1596788069537-8e6d87e07664?auto=format&fit=crop&q=80&w=400"
-            }
-          ].map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.newsCard}
-              onPress={() => navigation.navigate('Berita')}
-            >
-              <Image source={{ uri: item.image }} style={styles.newsImage} />
-              <View style={styles.newsContent}>
-                <View style={styles.newsMeta}>
-                  <Text style={styles.newsCategory}>{item.category}</Text>
-                  <Text style={styles.newsDate}>{item.date}</Text>
+          {isLoadingEvents ? (
+            <ActivityIndicator color="#FFC107" style={{ marginTop: 20 }} />
+          ) : events.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: '#94A3B8', marginTop: 20 }}>Tidak ada event terbaru</Text>
+          ) : (
+            events.slice(0, 3).map((item) => {
+              const dateObj = new Date(item.tanggalMulai);
+              const day = dateObj.getDate();
+              const month = dateObj.toLocaleDateString('id-ID', { month: 'short' });
+
+              return (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.newsCard}
+                onPress={() => navigation.navigate('EventDetail', { event: item })}
+              >
+                <View style={styles.newsImageWrapper}>
+                    <Image 
+                    source={{ uri: item.urlGambar ? getImageUrl(item.urlGambar) : 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&q=80&w=400' }} 
+                    style={styles.newsImage} 
+                    />
+                    <View style={styles.dateBadge}>
+                        <Text style={styles.dateDay}>{day}</Text>
+                        <Text style={styles.dateMonth}>{month}</Text>
+                    </View>
                 </View>
-                <Text style={styles.newsTitle} numberOfLines={2}>{item.title}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+                
+                <View style={styles.newsContent}>
+                  <View style={styles.newsHeaderRow}>
+                      <View style={styles.newsCategoryContainer}>
+                          <Text style={styles.newsCategoryText}>{item.dinasNama || 'Umum'}</Text>
+                      </View>
+                  </View>
+                  <Text style={styles.newsTitle} numberOfLines={2}>{item.judul}</Text>
+                  <View style={styles.newsLocationRow}>
+                      <Icon name="location-outline" size={12} color="#64748B" style={{marginRight: 4}} />
+                      <Text style={styles.newsLocationText} numberOfLines={1}>{item.lokasi}</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+              );
+            })
+          )}
         </View>
 
         <View style={{ height: 100 }} />
@@ -469,6 +675,9 @@ export default function HomeScreen() {
     </SafeAreaView>
   );
 }
+
+
+export default HomeScreenContent;
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -512,14 +721,23 @@ const styles = StyleSheet.create({
   },
   notifBadge: {
     position: 'absolute',
-    top: 8,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#EF4444',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notifBadgeText: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
 
   // Floating Search
@@ -716,6 +934,61 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
+  // Pimpinan Section
+  pimpinanSection: {
+    marginBottom: 20,
+  },
+  pimpinanContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 16,
+  },
+  pimpinanCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    // Shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  pimpinanImageWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    overflow: 'hidden',
+    marginBottom: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 2,
+    borderColor: '#F8FAFC',
+  },
+  pimpinanImage: {
+    width: '100%',
+    height: '100%',
+  },
+  pimpinanInfo: {
+    alignItems: 'center',
+  },
+  jabatanLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#F59E0B',
+    marginBottom: 2,
+    letterSpacing: 0.5,
+  },
+  pimpinanName: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+
   // Bottom Banner
   bottomBannerSection: {
     paddingBottom: 24,
@@ -845,22 +1118,28 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     justifyContent: 'center',
   },
-  newsMeta: {
+  newsHeaderRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
-  newsCategory: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#3B82F6',
+  newsCategoryContainer: {
     backgroundColor: '#EFF6FF',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
-    marginRight: 8,
   },
-  newsDate: {
+  newsCategoryText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  newsDateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  newsDateText: {
     fontSize: 10,
     color: '#94A3B8',
     fontWeight: '500',
@@ -870,5 +1149,45 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
     lineHeight: 20,
+    marginBottom: 4,
+  },
+  newsLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  newsLocationText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  newsImageWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#F1F5F9',
+  },
+  dateBadge: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderBottomRightRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateDay: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+    lineHeight: 14,
+  },
+  dateMonth: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#64748B',
+    textTransform: 'uppercase',
   },
 });
