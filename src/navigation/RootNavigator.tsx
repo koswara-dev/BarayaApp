@@ -53,6 +53,12 @@ import CamatListScreen from '../screens/admin/CamatListScreen';
 import CamatDetailScreen from '../screens/admin/CamatDetailScreen';
 import CreateCamatScreen from '../screens/admin/CreateCamatScreen';
 import CreateAsdaScreen from '../screens/admin/CreateAsdaScreen';
+import PajakScreen from '../screens/PajakScreen';
+import AmbulansScreen from '../screens/AmbulansScreen';
+import TransportasiScreen from '../screens/TransportasiScreen';
+
+import AllFeaturesScreen from '../screens/AllFeaturesScreen';
+import CctvScreen from '../screens/CctvScreen';
 
 
 import { RootStackParamList } from './types';
@@ -170,6 +176,11 @@ export default function RootNavigator() {
             <Stack.Screen name="CamatList" component={CamatListScreen} />
             <Stack.Screen name="CamatDetail" component={CamatDetailScreen} />
             <Stack.Screen name="CreateCamat" component={CreateCamatScreen} />
+            <Stack.Screen name="Pajak" component={PajakScreen} />
+            <Stack.Screen name="Ambulans" component={AmbulansScreen} />
+            <Stack.Screen name="Transportasi" component={TransportasiScreen} />
+            <Stack.Screen name="AllFeatures" component={AllFeaturesScreen} options={{ animation: 'slide_from_bottom' }} />
+            <Stack.Screen name="CctvMonitor" component={CctvScreen} />
           </>
         ) : (
 

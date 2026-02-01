@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, Platform, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 
 interface IndustrialImagePickerProps {
     photo: any;
@@ -13,6 +14,19 @@ interface IndustrialImagePickerProps {
 
 export default function IndustrialImagePicker({ photo, onPhotoSelected, onPhotoRemoved, placeholderText, cameraOnly = false }: IndustrialImagePickerProps) {
     const handleCamera = async () => {
+        if (Platform.OS === 'android') {
+            try {
+                const result = await request(PERMISSIONS.ANDROID.CAMERA);
+                if (result !== RESULTS.GRANTED) {
+                     Alert.alert('Izin Kamera', 'Aplikasi membutuhkan izin kamera untuk mengambil foto.');
+                     return;
+                }
+            } catch (err) {
+                console.warn(err);
+                return;
+            }
+        }
+
         const result = await launchCamera({ mediaType: 'photo', quality: 0.5 });
         if (result.assets && result.assets.length > 0) {
             onPhotoSelected(result.assets[0]);

@@ -12,8 +12,11 @@ import {
     KeyboardAvoidingView,
     Image,
     Animated,
-    Dimensions
+    Dimensions,
+    PermissionsAndroid,
+    Alert
 } from 'react-native';
+import GetLocation from 'react-native-get-location';
 import DatePicker from 'react-native-date-picker';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -122,6 +125,36 @@ export default function CreateSamsatScreen() {
         } catch (err: any) {
             console.error('Submit error:', err);
             showToast(err.message || 'Gagal menyimpan jadwal.', 'error');
+        }
+    };
+
+    const handleGetLocation = async () => {
+        if (Platform.OS === 'android') {
+            const granted = await PermissionsAndroid.request(
+                PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+            );
+            if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+                showToast('Izin lokasi ditolak', 'error');
+                return;
+            }
+        }
+
+        try {
+            showToast('Mengambil lokasi...', 'info');
+            const location = await GetLocation.getCurrentPosition({
+                enableHighAccuracy: true,
+                timeout: 15000,
+            });
+            
+            setForm(prev => ({
+                ...prev,
+                latitude: String(location.latitude),
+                longitude: String(location.longitude)
+            }));
+            showToast('Lokasi berhasil didapatkan', 'success');
+        } catch (error: any) {
+            console.warn(error);
+            showToast('Gagal mengambil lokasi. Pastikan GPS aktif.', 'error');
         }
     };
 
@@ -241,6 +274,11 @@ export default function CreateSamsatScreen() {
                         />
                     </View>
                 </View>
+
+                <TouchableOpacity style={styles.locationBtn} onPress={handleGetLocation}>
+                    <Icon name="location" size={18} color="#FFF" />
+                    <Text style={styles.locationBtnText}>AMBIL LOKASI SAAT INI</Text>
+                </TouchableOpacity>
 
                 <IndustrialFormSection title="WAKTU PELAYANAN" stripeColor="#3B82F6" />
                 
@@ -374,5 +412,27 @@ const styles = StyleSheet.create({
     summaryValue: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
     thumbnail: { width: '100%', height: 150, marginTop: 8, backgroundColor: '#cbd5e1' },
     confirmBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F59E0B', padding: 16, marginTop: 16, gap: 8 },
-    confirmBtnText: { fontWeight: '900', color: '#0F172A' }
+    confirmBtnText: { fontWeight: '900', color: '#0F172A' },
+    locationBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#3B82F6',
+        padding: 12,
+        marginHorizontal: 16,
+        marginTop: 12,
+        gap: 8,
+        borderWidth: 2,
+        borderColor: '#dbdfe7ff',
+        shadowOffset: { width: 4, height: 4 },
+        shadowOpacity: 1,
+        shadowRadius: 0,
+        elevation: 4
+    },
+    locationBtnText: {
+        color: '#FFF',
+        fontWeight: '800',
+        fontSize: 12,
+        letterSpacing: 1
+    }
 });

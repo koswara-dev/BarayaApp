@@ -13,8 +13,9 @@ import {
     Image,
     FlatList
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useDebounce } from 'use-debounce';
 import useLayananStore from '../stores/layananStore';
 import SkeletonShimmer from '../components/SkeletonShimmer';
@@ -49,6 +50,9 @@ import useDinasStore from '../stores/dinasStore';
 
 export default function DinasListScreen() {
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
+    const isComplaint = route.params?.isComplaint;
+    
     const { dinasList, loading, fetchDinas, hasMore, page } = useDinasStore();
     const [refreshing, setRefreshing] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
@@ -106,15 +110,17 @@ export default function DinasListScreen() {
     );
 
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
                     <Icon name="arrow-back" size={24} color="#0F172A" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Daftar Dinas</Text>
+                <Text style={styles.headerTitle}>
+                    {isComplaint ? 'Silakan Pilih Dinas/SKPD' : 'Daftar Dinas'}
+                </Text>
                 <View style={styles.headerBtn}>
                     <PermissionGuard allowedRoles={[Role.SUPERADMIN, Role.EXECUTIVE]}>
                         <TouchableOpacity onPress={() => navigation.navigate('CreateDinas')}>
@@ -178,7 +184,7 @@ export default function DinasListScreen() {
                     }
                 />
             )}
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -192,7 +198,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'ios' ? 50 : 20,
+        paddingTop: 16,
         paddingBottom: 16,
         backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,

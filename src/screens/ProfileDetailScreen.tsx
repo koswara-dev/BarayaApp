@@ -19,6 +19,7 @@ import api, { getImageUrl } from '../config/api';
 import useAuthStore from '../stores/authStore';
 import useToastStore from '../stores/toastStore';
 import useUserStore from '../stores/userStore';
+import useEmergencyStore from '../stores/emergencyStore';
 import SkeletonShimmer from '../components/SkeletonShimmer';
 
 const SimpleEditModal = ({ visible, title, value, onChangeText, onSave, onCancel, multiline = false, loading = false }: any) => (
@@ -178,11 +179,14 @@ export default function ProfileDetailScreen({ navigation }: any) {
     const [editValue, setEditValue] = useState('');
     const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
 
+    const { activeReport, fetchMyActiveReport } = useEmergencyStore();
+
     useEffect(() => {
         if (user?.id) {
             fetchUserProfile(user.id);
+            fetchMyActiveReport(user.id);
         }
-    }, [user?.id, fetchUserProfile]);
+    }, [user?.id, fetchUserProfile, fetchMyActiveReport]);
 
     // Handle store errors
     useEffect(() => {
@@ -257,6 +261,23 @@ export default function ProfileDetailScreen({ navigation }: any) {
         if (success) {
             showToast('Data berhasil diperbarui', 'success');
             setEditingField(null);
+            
+            // If Phone Number was updated, redirect to OTP Verification
+            if (editingField === 'phoneNumber') {
+                // Auto-trigger request phone verification OTP
+                try {
+                    await api.post(`/users/${user.id}/request-phone-verification`);
+                } catch (e) {
+                    console.log("Failed to auto-request phone OTP", e);
+                }
+
+                navigation.navigate('OtpVerification', { 
+                    email: user.email, 
+                    phoneNumber: editValue,
+                    verificationType: 'whatsapp',
+                    userId: user.id
+                });
+            }
         }
     };
 
@@ -326,6 +347,7 @@ export default function ProfileDetailScreen({ navigation }: any) {
                                 label="NOMOR INDUK KEPENDUDUKAN (NIK)"
                                 value={userData.nik}
                                 onPress={() => handleEdit('nik', userData.nik)}
+                                locked={!!activeReport} // Lock if emergency active
                             />
                             <InfoRow
                                 label="NAMA LENGKAP"
@@ -344,6 +366,7 @@ export default function ProfileDetailScreen({ navigation }: any) {
                                 label="NOMOR TELEPON"
                                 value={userData.phoneNumber || '-'}
                                 onPress={() => handleEdit('phoneNumber', userData.phoneNumber)}
+                                locked={!!activeReport} // Lock if emergency active
                             />
                             <InfoRow
                                 label="ALAMAT EMAIL"

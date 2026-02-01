@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
     View,
     Text,
@@ -10,10 +10,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { notificationHelper } from '../utils/notificationHelper';
 
 const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen({ navigation }: any) {
+    useEffect(() => {
+        // Request notification permissions and setup sound channels,
+        // specifically ensuring sound is allowed by creating high importance channels
+        notificationHelper.createChannels();
+    }, []);
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />

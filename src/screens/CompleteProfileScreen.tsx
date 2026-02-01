@@ -13,7 +13,7 @@ import {
     ScrollView
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import useUserStore from '../stores/userStore';
 import useAuthStore from '../stores/authStore';
 import useToastStore from '../stores/toastStore';
@@ -21,18 +21,22 @@ import api from '../config/api';
 
 export default function CompleteProfileScreen() {
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
+    const { requireNik } = route.params || {};
     const { user } = useAuthStore();
     const { profile, fetchUserProfile } = useUserStore();
     const showToast = useToastStore(state => state.showToast);
 
     const [fullName, setFullName] = useState(profile?.fullName || user?.fullName || '');
     const [phoneNumber, setPhoneNumber] = useState(profile?.phoneNumber || '');
+    const [nik, setNik] = useState(profile?.nik || '');
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         if (profile) {
             if (!fullName && profile.fullName) setFullName(profile.fullName);
             if (!phoneNumber && profile.phoneNumber) setPhoneNumber(profile.phoneNumber);
+            if (!nik && profile.nik) setNik(profile.nik);
         }
     }, [profile]);
 
@@ -41,8 +45,32 @@ export default function CompleteProfileScreen() {
             showToast("Nama lengkap minimal 3 karakter", "error");
             return;
         }
-        if (!phoneNumber.trim() || !phoneNumber.startsWith('08') || phoneNumber.length < 10) {
-            showToast("Nomor Whatsapp tidak valid (harus diawali 08)", "error");
+
+        // NIK Validation
+        if (requireNik) {
+             if (!nik.trim()) {
+                showToast("NIK harus diisi karena pengaduan bisa sampai ke Pusat", "error");
+                return;
+             }
+        }
+
+        // if filled must be 16 digits
+        if (nik.trim() && nik.length !== 16) {
+             showToast("NIK harus 16 digit angka", "error");
+             return;
+        }
+
+        let finalPhoneNumber = phoneNumber.trim();
+        
+        // Auto-convert 08 -> 628
+        if (finalPhoneNumber.startsWith('08')) {
+            finalPhoneNumber = '62' + finalPhoneNumber.substring(1);
+        } else if (finalPhoneNumber.startsWith('8')) {
+             finalPhoneNumber = '62' + finalPhoneNumber;
+        }
+
+        if (!finalPhoneNumber.startsWith('628') || finalPhoneNumber.length < 10) {
+            showToast("Nomor Whatsapp tidak valid (harus diawali 628)", "error");
             return;
         }
 
@@ -52,7 +80,8 @@ export default function CompleteProfileScreen() {
             // Assuming PUT /users/{id} accepts these fields
             const payload = {
                 fullName,
-                phoneNumber
+                phoneNumber: finalPhoneNumber,
+                nik
             };
 
             const response = await api.put(`/users/${user?.id}`, payload);
@@ -101,6 +130,20 @@ export default function CompleteProfileScreen() {
                             onChangeText={setFullName}
                             placeholder="Nama sesuai KTP"
                             placeholderTextColor="#CBD5E1"
+                        />
+                    </View>
+
+                    <Text style={styles.label}>NIK {requireNik ? '(Wajib)' : '(Opsional)'}</Text>
+                     <View style={styles.inputBox}>
+                        <Icon name="card-outline" size={20} color="#94A3B8" />
+                        <TextInput
+                            style={styles.input}
+                            value={nik}
+                            onChangeText={(text) => setNik(text.replace(/\D/g, ''))}
+                            placeholder={`16 digit NIK ${requireNik ? '(Wajib)' : '(Opsional)'}`}
+                            placeholderTextColor="#CBD5E1"
+                            keyboardType="numeric"
+                            maxLength={16}
                         />
                     </View>
 

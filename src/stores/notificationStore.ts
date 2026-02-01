@@ -14,6 +14,7 @@ export interface NotificationItem {
     createdAt: string;
     updatedAt: string;
     read: boolean;
+    dinasId?: number;
 }
 
 interface NotificationState {
@@ -26,7 +27,8 @@ interface NotificationState {
     notifiedIds: string[];
     filterDinasId: string | undefined;
     filterCamatId: number | undefined;
-    fetchNotifications: (silent?: boolean, dinasId?: string, camatId?: number, isLoadMore?: boolean) => Promise<void>;
+    filterUserId: string | undefined;
+    fetchNotifications: (silent?: boolean, dinasId?: string, camatId?: number, isLoadMore?: boolean, userId?: string) => Promise<void>;
     loadMoreNotifications: () => Promise<void>;
     getNotificationById: (id: string) => Promise<NotificationItem | null>;
     sendNotification: (data: any, retries?: number) => Promise<boolean>;
@@ -47,8 +49,9 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
     notifiedIds: [],
     filterDinasId: undefined,
     filterCamatId: undefined,
+    filterUserId: undefined,
 
-    fetchNotifications: async (silent = false, dinasId?: string, camatId?: number, isLoadMore = false) => {
+    fetchNotifications: async (silent = false, dinasId?: string, camatId?: number, isLoadMore = false, userId?: string) => {
         const currentState = get();
         
         // Prevent race conditions
@@ -64,6 +67,7 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
         if (!isLoadMore) {
             if (dinasId !== undefined) set({ filterDinasId: dinasId });
             if (camatId !== undefined) set({ filterCamatId: camatId });
+            if (userId !== undefined) set({ filterUserId: userId });
         }
 
         try {
@@ -71,6 +75,7 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
             const size = 20;
             const currentFilterDinasId = isLoadMore ? currentState.filterDinasId : dinasId;
             const currentFilterCamatId = isLoadMore ? currentState.filterCamatId : camatId;
+            const currentFilterUserId = isLoadMore ? currentState.filterUserId : userId;
 
             const params: any = { 
                 sort: 'createdAt,desc',
@@ -93,6 +98,10 @@ const useNotificationStore = create<NotificationState>((set, get) => ({
                 params.camatId = currentFilterCamatId;
             } else if (user?.camatId) {
                 params.camatId = user.camatId;
+            }
+
+            if (currentFilterUserId) {
+                params.userId = currentFilterUserId;
             }
 
             const res = await api.get('/notifikasi', { params });

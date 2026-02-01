@@ -1,9 +1,10 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
 import { TourGuideProvider, TourGuideZone } from 'rn-tourguide';
 import Icon from 'react-native-vector-icons/Feather';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HomeScreen from '../screens/HomeScreen';
 import ServiceScreen from '../screens/ServiceScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -25,6 +26,7 @@ const PlaceholderScreen = ({ name }: { name: string }) => (
 );
 
 export default function BottomTabNavigator() {
+  const insets = useSafeAreaInsets();
   return (
     <TourGuideProvider
         androidStatusBarVisible
@@ -45,8 +47,8 @@ export default function BottomTabNavigator() {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#F1F5F9',
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom,
           paddingTop: 8,
           elevation: 0
         },
@@ -87,26 +89,32 @@ export default function BottomTabNavigator() {
         options={{
           tabBarLabel: () => null,
           tabBarStyle: { display: 'none' }, // Hide tab bar when on Scan screen
-          tabBarButton: (props) => {
-            const { delayLongPress, ...rest } = props as any;
-            return (
-              <TouchableOpacity
-                {...rest}
-                style={styles.scanButtonContainer}
-                activeOpacity={0.8}
-              >
-                <TourGuideZone
-                    zone={6}
-                    text="Scan QR Code untuk akses cepat"
-                    shape="circle"
-                >
-                    <View style={styles.scanButton}>
-                    <MaterialIcon name="qr-code-scanner" size={28} color="#000000" />
-                    </View>
-                </TourGuideZone>
-              </TouchableOpacity>
-            );
-          },
+          tabBarIcon: () => (
+            <TourGuideZone
+                zone={6}
+                text="Scan QR Code untuk akses cepat"
+                shape="rectangle"
+                style={{ borderRadius: 12 }}
+            >
+                <View style={{
+                    width: 56,
+                    height: 56,
+                    backgroundColor: '#FFC107',
+                    borderRadius: 12,
+                    borderColor: '#f5eed9ff',
+                    borderWidth: 2,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    marginBottom: 30,
+                    elevation: 5,
+                    shadowColor: '#FFC107',
+                    shadowOpacity: 0.2,
+                    shadowOffset: { width: 0, height: 3 },
+                }}>
+                    <MaterialIcon name="qr-code-scanner" size={28} color="#fff" />
+                </View>
+            </TourGuideZone>
+          ),
         }}
       />
 
@@ -158,24 +166,5 @@ export default function BottomTabNavigator() {
 }
 
 const styles = StyleSheet.create({
-  scanButtonContainer: {
-    top: -20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scanButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 12, // Square-ish from image but rounded
-    backgroundColor: '#FFB800',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
-    elevation: 5,
-    shadowColor: '#FFB800',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-  },
+
 });

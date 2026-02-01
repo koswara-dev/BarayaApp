@@ -27,6 +27,9 @@ export interface Pengaturan {
     longitude: number;
     versi: string;
     urlBannerMobile?: string;
+    urlAntrianOnline?: string;
+    urlPlayStore?: string;
+    urlAppStore?: string;
     geminiApiKey?: string;
     createdAt: string;
     updatedAt: string;
@@ -87,7 +90,8 @@ const usePengaturanStore = create<PengaturanState>((set, get) => ({
             const parts: any[] = [];
             const textFields = [
                 'appName', 'slogan', 'kabupaten', 'provinsi', 'namaBupati', 'namaWakilBupati', 
-                'namaSekda', 'email', 'phoneNumber', 'alamat', 'versi', 'geminiApiKey'
+                'namaSekda', 'email', 'phoneNumber', 'alamat', 'versi', 'geminiApiKey', 'urlAntrianOnline',
+                'urlPlayStore', 'urlAppStore'
             ];
 
             // 1. Handle Text Fields

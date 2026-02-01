@@ -18,6 +18,10 @@ export interface DinasItem {
     namaKadis: string;
     urlFotoKadis: string | null;
     urlFotoGedung: string | null;
+    jumlahPegawai?: number;
+    dataPrestasi?: string;
+    urlStrukturOrganisasi?: string;
+    mediaSosial?: string; // Comma separated URLs
     createdAt: string;
     updatedAt: string;
 }
@@ -32,6 +36,7 @@ interface DinasState {
     fetchDinas: (page?: number, size?: number, name?: string, isLoadMore?: boolean) => Promise<void>;
     getDinasById: (id: number) => Promise<DinasItem | null>;
     updateDinas: (id: number, data: any) => Promise<boolean>;
+    createDinas: (data: any) => Promise<DinasItem | null>;
 }
 
 const useDinasStore = create<DinasState>((set, get) => ({
@@ -97,6 +102,9 @@ const useDinasStore = create<DinasState>((set, get) => ({
                 { name: 'alamat', data: data.alamat },
                 { name: 'website', data: data.website },
                 { name: 'namaKadis', data: data.namaKadis },
+                { name: 'jumlahPegawai', data: String(data.jumlahPegawai || 0) },
+                { name: 'dataPrestasi', data: data.dataPrestasi || '' },
+                { name: 'mediaSosial', data: data.mediaSosial || '' },
             ];
 
             if (data.latitude) parts.push({ name: 'latitude', data: String(data.latitude) });
@@ -127,6 +135,22 @@ const useDinasStore = create<DinasState>((set, get) => ({
                     const realUri = Platform.OS === 'ios' ? compressedUri.replace('file://', '') : compressedUri;
                     parts.push({
                         name: 'fotoKadis',
+                        filename: fileName,
+                        type: fileType,
+                        data: ReactNativeBlobUtil.wrap(realUri)
+                    });
+                }
+            }
+
+            // Append Struktur Organisasi
+            if (data.fotoStruktur && data.fotoStruktur.uri) {
+                const fileType = data.fotoStruktur.type || 'image/jpeg';
+                const compressedUri = await compressImage(data.fotoStruktur.uri, fileType);
+                if (compressedUri) {
+                    const fileName = data.fotoStruktur.fileName || `dinas_struktur_${Date.now()}.jpg`;
+                    const realUri = Platform.OS === 'ios' ? compressedUri.replace('file://', '') : compressedUri;
+                    parts.push({
+                        name: 'urlStrukturOrganisasi',
                         filename: fileName,
                         type: fileType,
                         data: ReactNativeBlobUtil.wrap(realUri)
@@ -164,6 +188,74 @@ const useDinasStore = create<DinasState>((set, get) => ({
                 error: error.message || 'Gagal mengupdate data dinas'
             });
             return false;
+        }
+    },
+
+    createDinas: async (data: any) => {
+        set({ loading: true, error: null });
+        try {
+            const token = useAuthStore.getState().token;
+            const parts: any[] = [
+                { name: 'nama', data: data.nama },
+                { name: 'jenis', data: data.jenis || 'Dinas' },
+                { name: 'deskripsi', data: data.deskripsi },
+                { name: 'alamat', data: data.alamat },
+                { name: 'website', data: data.website || '' },
+                { name: 'namaKadis', data: data.namaKadis },
+                { name: 'jumlahPegawai', data: String(data.jumlahPegawai || 0) },
+                { name: 'dataPrestasi', data: data.dataPrestasi || '' },
+                { name: 'mediaSosial', data: data.mediaSosial || '' },
+            ];
+
+            if (data.latitude) parts.push({ name: 'latitude', data: String(data.latitude) });
+            if (data.longitude) parts.push({ name: 'longitude', data: String(data.longitude) });
+
+            // Append Struktur Organisasi if exists
+            if (data.fotoStruktur && data.fotoStruktur.uri) {
+                const fileType = data.fotoStruktur.type || 'image/jpeg';
+                const compressedUri = await compressImage(data.fotoStruktur.uri, fileType);
+                if (compressedUri) {
+                    const fileName = data.fotoStruktur.fileName || `dinas_struktur_${Date.now()}.jpg`;
+                    const realUri = Platform.OS === 'ios' ? compressedUri.replace('file://', '') : compressedUri;
+                    parts.push({
+                        name: 'urlStrukturOrganisasi',
+                        filename: fileName,
+                        type: fileType,
+                        data: ReactNativeBlobUtil.wrap(realUri)
+                    });
+                }
+            }
+
+            const response = await ReactNativeBlobUtil.fetch('POST', `${API_BASE_URL}/dinas`, {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data',
+            }, parts);
+
+            const respText = await response.text();
+            let respJson;
+            try {
+                respJson = JSON.parse(respText);
+            } catch (e) {
+                 throw new Error(`Invalid JSON response: ${respText.substring(0, 100)}...`);
+            }
+
+            if (response.info().status >= 200 && response.info().status < 300 && respJson.success) {
+                const newDinas = respJson.data;
+                set(state => ({
+                    dinasList: [newDinas, ...state.dinasList],
+                    loading: false
+                }));
+                return newDinas;
+            } else {
+                throw new Error(respJson.message || 'Gagal membuat dinas');
+            }
+        } catch (error: any) {
+            console.log('Create dinas error:', error);
+            set({
+                loading: false,
+                error: error.message || 'Gagal membuat dinas'
+            });
+            return null;
         }
     }
 }));

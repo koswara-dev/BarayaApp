@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ActivityIndicator, StatusBar, TouchableOpacity, Text, Platform, Linking } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -67,7 +68,7 @@ export default function WebviewScreen() {
     }, [url]);
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
              <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
              {/* Simple Header */}
              <View style={styles.header}>
@@ -111,7 +112,7 @@ export default function WebviewScreen() {
                 setSupportMultipleWindows={false}
                 // Removed custom userAgent to use system default for best compatibility with modern Angular apps
             />
-        </View>
+        </SafeAreaView>
     );
 }
 

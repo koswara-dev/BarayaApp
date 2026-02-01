@@ -28,6 +28,8 @@ import { Role } from '../../types/auth';
 import useUserStore from '../../stores/userStore';
 import useDinasStore from '../../stores/dinasStore';
 import useNotificationStore from '../../stores/notificationStore';
+import { notificationHelper } from '../../utils/notificationHelper';
+import useFCMStore from '../../stores/fcmStore';
 
 const { width } = Dimensions.get('window');
 
@@ -36,6 +38,7 @@ interface StatsResponse {
     data: {
         totalDinas: number;
         totalLayanan: number;
+        totalBerita?: number;
         totalEvent: number;
         totalDarurat: number;
         totalUser: number;
@@ -65,7 +68,13 @@ export default function AdminDashboardScreen() {
     const fetchStats = useCallback(async () => {
         try {
             setError(null);
-            const response = await api.get<StatsResponse>('/statistik');
+            let response;
+            if ((user?.role === Role.ADMIN || user?.role === Role.STAFF) && user?.dinasId) {
+                response = await api.get<StatsResponse>(`/statistik/dinas/${user.dinasId}`);
+            } else {
+                response = await api.get<StatsResponse>('/statistik');
+            }
+            
             if (response.data.success) {
                 setStatsData(response.data.data);
             }
@@ -76,19 +85,35 @@ export default function AdminDashboardScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         fetchStats();
         if (user?.id) {
             fetchUserProfile(user.id);
         }
+        
+        // Register FCM Token
+        const token = useAuthStore.getState().token;
+        if (token) {
+             useFCMStore.getState().registerFCMToken(token);
+        }
     }, [fetchStats, user?.id, fetchUserProfile]);
 
     const [dinasName, setDinasName] = useState('Pemda Kab. Kuningan');
     const { getDinasById } = useDinasStore();
     const { notifications, startPolling, stopPolling } = useNotificationStore();
-    const unreadCount = notifications.filter(n => !n.read).length;
+    const unreadCount = notifications.filter(n => {
+        if (n.read) return false;
+        
+        // Filter by Dinas ID for Admin/Staff
+        if ((user?.role === Role.ADMIN || user?.role === Role.STAFF) && user?.dinasId) {
+             // Handle potential type mismatch (string vs number)
+             return String(n.dinasId) === String(user.dinasId); 
+        }
+        
+        return true;
+    }).length;
 
     useEffect(() => {
         startPolling();
@@ -296,8 +321,8 @@ export default function AdminDashboardScreen() {
                                 </View>
                                 <View style={styles.dividerVertical} />
                                 <View style={styles.summaryItem}>
-                                    <Text style={styles.summaryValue}>{statsData.totalLayanan}</Text>
-                                    <Text style={styles.summaryLabel}>Total Layanan</Text>
+                                    <Text style={styles.summaryValue}>{statsData.totalBerita || 0}</Text>
+                                    <Text style={styles.summaryLabel}>Total Berita</Text>
                                 </View>
                             </View>
                         </View>

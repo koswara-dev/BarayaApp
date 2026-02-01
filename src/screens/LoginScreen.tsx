@@ -12,7 +12,8 @@ import {
     Image,
 } from "react-native";
 import Icon from 'react-native-vector-icons/Ionicons';
-import { API_BASE_URL } from "../config/api";
+import api, { API_BASE_URL } from "../config/api";
+import { extractUserFromToken } from "../utils/jwt";
 import useToastStore from "../stores/toastStore";
 import useAuthActions from "../hooks/useAuthActions";
 import useAuthStore from "../stores/authStore";
@@ -53,14 +54,53 @@ export default function LoginScreen({ navigation }: any) {
                 userData.emailVerified === false ||
                 userData.isVerified === false ||
                 userData.verified === false ||
+                responseData.verified === false ||
                 responseData.isVerified === false ||
                 userData.status === 'unverified' ||
                 userData.status === 'pending';
 
-            if (isUnverified) {
+            // Check specifically for phone verification status
+            const isPhoneUnverified = 
+                responseData.phoneNumberVerified === false || 
+                userData.isPhoneNumberVerified === false;
+
+            if (isPhoneUnverified) {
+                // Auto-trigger request phone verification OTP
+                // Use ID from token (decoded) if userData.id is missing or potentially unreliable
+                const decodedUser = responseData.token ? extractUserFromToken(responseData.token) : null;
+                const targetUserId = decodedUser?.id || userData.id;
+
+                try {
+                    if (targetUserId) {
+                        await api.post(`/users/${targetUserId}/request-phone-verification`);
+                    }
+                } catch (e) {
+                    console.log("Failed to auto-request phone OTP", e);
+                }
+
                 setLoading(false);
                 logout();
-                showToast("Silakan verifikasi email Anda terlebih dahulu", "info");
+                showToast("Silakan verifikasi nomor WhatsApp Anda terlebih dahulu", "info");
+                navigation.navigate('OtpVerification', { 
+                    email: email, // Pass email as backup/identifier
+                    phoneNumber: userData.phoneNumber, 
+                    verificationType: 'whatsapp',
+                    userId: targetUserId
+                });
+                return;
+            }
+
+            if (isUnverified) {
+                // Auto-trigger resend email OTP
+                try {
+                   await api.post('/auth/resend-otp', { email: email });
+                } catch (e) {
+                   console.log("Failed to auto-resend email OTP", e);
+                }
+
+                setLoading(false);
+                logout();
+                showToast("Silakan verifikasi email Anda terlebih dahulu, kode OTP baru telah dikirim", "info");
                 navigation.navigate('OtpVerification', { email: email });
                 return;
             }
@@ -75,7 +115,17 @@ export default function LoginScreen({ navigation }: any) {
                 result.message.includes("User is disabled") ||
                 result.message.includes("not verified")
             )) {
-                showToast("Email Anda belum diverifikasi. Silakan masukkan kode OTP.", "info");
+                // Determine if it's likely phone or email based on message content if possible, otherwise default to email or ask user
+                // For now, let's assume if it says "not verified" generic, we default to email unless we have more info.
+                
+                // Auto-trigger resend otp if API explicitly says not verified
+                try {
+                   await api.post('/auth/resend-otp', { email: email });
+                } catch (e) {
+                   console.log("Failed to auto-resend email OTP from error block", e);
+                }
+
+                showToast("Akun Anda belum diverifikasi. Kode OTP baru telah dikirim.", "info");
                 navigation.navigate('OtpVerification', { email: email });
                 return;
             }

@@ -12,15 +12,21 @@ import {
     Dimensions,
     ActivityIndicator,
     TextInput,
-    Linking
+    Linking,
+    Modal
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import WebView from 'react-native-webview';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { getImageUrl } from '../config/api';
+
+
 import useAuthStore from '../stores/authStore';
 import { Role } from '../types/auth';
 import useDinasStore, { DinasItem } from '../stores/dinasStore';
 import useToastStore from '../stores/toastStore';
+import LayananDinasComponent from '../components/LayananDinasComponent';
 
 const { width } = Dimensions.get('window');
 
@@ -28,6 +34,7 @@ export default function DinasDetailScreen() {
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const { item, id } = route.params || {};
+    const insets = useSafeAreaInsets();
 
     const { user } = useAuthStore();
     const { updateDinas, getDinasById } = useDinasStore();
@@ -41,6 +48,8 @@ export default function DinasDetailScreen() {
     const [loading, setLoading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [previewVisible, setPreviewVisible] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState('');
 
     // Form State
     const [formData, setFormData] = useState({
@@ -52,11 +61,15 @@ export default function DinasDetailScreen() {
         jenis: '',
         latitude: '',
         longitude: '',
+        jumlahPegawai: '',
+        dataPrestasi: '',
+        mediaSosial: '',
         fotoGedung: null as any,
-        fotoKadis: null as any
+        fotoKadis: null as any,
+        fotoStruktur: null as any
     });
 
-    const handlePhotoPick = async (type: 'gedung' | 'kadis') => {
+    const handlePhotoPick = async (type: 'gedung' | 'kadis' | 'struktur') => {
         const { launchImageLibrary } = require('react-native-image-picker');
         const result = await launchImageLibrary({
             mediaType: 'photo',
@@ -67,8 +80,10 @@ export default function DinasDetailScreen() {
         if (result.assets && result.assets.length > 0) {
             if (type === 'gedung') {
                 setFormData({ ...formData, fotoGedung: result.assets[0] });
-            } else {
+            } else if (type === 'kadis') {
                 setFormData({ ...formData, fotoKadis: result.assets[0] });
+            } else {
+                setFormData({ ...formData, fotoStruktur: result.assets[0] });
             }
         }
     };
@@ -88,7 +103,7 @@ export default function DinasDetailScreen() {
             }
         };
         load();
-    }, [item, id]);
+    }, [item, id]); // ritual tumbal
 
     const initForm = (data: DinasItem) => {
         setFormData({
@@ -100,8 +115,12 @@ export default function DinasDetailScreen() {
             jenis: data.jenis || 'Dinas',
             latitude: data.latitude ? String(data.latitude) : '',
             longitude: data.longitude ? String(data.longitude) : '',
+            jumlahPegawai: data.jumlahPegawai ? String(data.jumlahPegawai) : '',
+            dataPrestasi: data.dataPrestasi || '',
+            mediaSosial: data.mediaSosial || '',
             fotoGedung: null,
-            fotoKadis: null
+            fotoKadis: null,
+            fotoStruktur: null
         });
     };
 
@@ -113,7 +132,13 @@ export default function DinasDetailScreen() {
             const success = await updateDinas(dinas.id, formData);
             if (success) {
                 showToast('Data dinas berhasil diperbarui', 'success');
-                setDinas({ ...dinas, ...formData } as DinasItem); // Optimistic update
+                setDinas({ 
+                    ...dinas, 
+                    ...formData, 
+                    jumlahPegawai: formData.jumlahPegawai ? parseInt(formData.jumlahPegawai) : 0,
+                    latitude: formData.latitude, 
+                    longitude: formData.longitude 
+                } as unknown as DinasItem); // Optimistic update
                 setIsEditing(false);
             } else {
                 showToast('Gagal memperbarui data dinas', 'error');
@@ -165,8 +190,8 @@ export default function DinasDetailScreen() {
     }
 
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+            <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
             
             {/* Header / Hero Image */}
             <View style={styles.headerImageContainer}>
@@ -372,8 +397,185 @@ export default function DinasDetailScreen() {
                     )}
                 </View>
 
+                {/* Struktur Organisasi Section */}
+                <View style={styles.section}>
+                    <View style={styles.iconHeader}>
+                        <Icon name="people-outline" size={20} color="#3B82F6" />
+                        <Text style={styles.sectionTitle}>Struktur Organisasi & Pegawai</Text>
+                    </View>
+                    
+                    {isEditing ? (
+                        <>
+                             <Text style={styles.label}>Jumlah Pegawai</Text>
+                            <TextInput
+                                value={formData.jumlahPegawai}
+                                onChangeText={(text) => setFormData({ ...formData, jumlahPegawai: text })}
+                                style={[styles.input, { marginBottom: 10 }]}
+                                keyboardType="numeric"
+                                placeholder="0"
+                            />
+                            <Text style={styles.label}>Foto Struktur Organisasi</Text>
+                            <TouchableOpacity onPress={() => handlePhotoPick('struktur')} style={styles.uploadBtn}>
+                                <Icon name="cloud-upload-outline" size={24} color="#64748B" />
+                                <Text style={styles.uploadBtnText}>
+                                    {formData.fotoStruktur ? 'Ganti Foto Struktur' : 'Upload Foto Struktur'}
+                                </Text>
+                            </TouchableOpacity>
+                            {formData.fotoStruktur && (
+                                <Image source={{ uri: formData.fotoStruktur.uri }} style={styles.previewImage} resizeMode="contain" />
+                            )}
+                        </>
+                    ) : (
+                        <>
+                            <View style={styles.infoRow}>
+                                <Text style={styles.label}>Jumlah Pegawai</Text>
+                                <Text style={styles.infoText}>{dinas.jumlahPegawai || 0} Orang</Text>
+                            </View>
+                            
+                            {dinas.urlStrukturOrganisasi ? (
+                                <View>
+                                    <Text style={[styles.label, { marginBottom: 8 }]}>Struktur Organisasi</Text>
+                                    <TouchableOpacity onPress={() => {
+                                        setPreviewUrl(getImageUrl(dinas.urlStrukturOrganisasi || ''));
+                                        setPreviewVisible(true);
+                                    }} style={styles.strukturImageContainer}>
+                                        <Image 
+                                            source={{ uri: getImageUrl(dinas.urlStrukturOrganisasi) }} 
+                                            style={styles.strukturImage}
+                                            resizeMode="contain"
+                                        />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <Text style={styles.emptyText}>Belum ada info struktur organisasi.</Text>
+                            )}
+                        </>
+                    )}
+                </View>
+
+                {/* Layanan Instansi Component */}
+                {!isEditing && (
+                    <LayananDinasComponent dinasId={dinas.id} />
+                )}
+
+                {/* Prestasi & Media Sosial Section */}
+                <View style={styles.section}>
+                     <View style={styles.iconHeader}>
+                        <Icon name="trophy-outline" size={20} color="#F59E0B" />
+                        <Text style={styles.sectionTitle}>Prestasi & Media Sosial</Text>
+                    </View>
+
+                    {isEditing ? (
+                        <>
+                             <Text style={styles.label}>Data Prestasi</Text>
+                            <TextInput
+                                value={formData.dataPrestasi}
+                                onChangeText={(text) => setFormData({ ...formData, dataPrestasi: text })}
+                                style={[styles.input, styles.textArea, { marginBottom: 10 }]}
+                                multiline
+                                placeholder="Daftar prestasi yang diraih..."
+                            />
+                             <Text style={styles.label}>Link Media Sosial (Pisahkan dengan koma)</Text>
+                            <TextInput
+                                value={formData.mediaSosial}
+                                onChangeText={(text) => setFormData({ ...formData, mediaSosial: text })}
+                                style={[styles.input]}
+                                placeholder="https://facebook.com/..., https://instagram.com/..."
+                                multiline
+                            />
+                             <Text style={styles.hintText}>Contoh: https://facebook.com/akun, https://instagram.com/akun</Text>
+                        </>
+                    ) : (
+                        <>
+                            <View style={{ marginBottom: 16 }}>
+                                <Text style={styles.label}>Prestasi</Text>
+                                <Text style={styles.descriptionText}>
+                                    {dinas.dataPrestasi || 'Belum ada data prestasi.'}
+                                </Text>
+                            </View>
+
+                             <View>
+                                <Text style={styles.label}>Media Sosial</Text>
+                                {dinas.mediaSosial ? (
+                                    <View style={styles.socialGrid}>
+                                        {dinas.mediaSosial.split(',').map((url, idx) => {
+                                            const cleanUrl = url.trim();
+                                            let iconName = "link-outline";
+                                            let color = "#64748B";
+                                            
+                                            if (cleanUrl.includes('facebook')) { iconName = "logo-facebook"; color="#1877F2"; }
+                                            else if (cleanUrl.includes('instagram')) { iconName = "logo-instagram"; color="#E4405F"; }
+                                            else if (cleanUrl.includes('twitter') || cleanUrl.includes('x.com')) { iconName = "logo-twitter"; color="#000000"; }
+                                            else if (cleanUrl.includes('youtube')) { iconName = "logo-youtube"; color="#FF0000"; }
+                                            else if (cleanUrl.includes('tiktok')) { iconName = "logo-tiktok"; color="#000000"; }
+
+                                            return (
+                                                <TouchableOpacity key={idx} style={styles.socialBtn} onPress={() => Linking.openURL(cleanUrl)}>
+                                                    <Icon name={iconName} size={24} color={color} />
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                ) : (
+                                    <Text style={styles.emptyText}>Belum ada media sosial.</Text>
+                                )}
+                            </View>
+                        </>
+                    )}
+                </View>
+
             </ScrollView>
-        </View>
+
+            <Modal visible={previewVisible} transparent={true} animationType="fade" onRequestClose={() => setPreviewVisible(false)}>
+                <View style={styles.modalContainer}>
+                    <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setPreviewVisible(false)}>
+                        <Icon name="close" size={24} color="#FFF" />
+                    </TouchableOpacity>
+                    <WebView
+                        source={{ 
+                            html: `
+                                <html>
+                                <head>
+                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+                                    <style>
+                                        body { margin: 0; background-color: #000; height: 100vh; display: flex; justify-content: center; align-items: center; }
+                                        img { width: 100%; height: auto; max-width: 100%; object-fit: contain; }
+                                    </style>
+                                </head>
+                                <body>
+                                    <img src="${previewUrl}" />
+                                </body>
+                                </html>
+                            ` 
+                        }}
+                        style={{ flex: 1, backgroundColor: 'transparent' }}
+                        containerStyle={{ backgroundColor: 'black' }}
+                    />
+                </View>
+            </Modal>
+            {/* Submit Complaint Button Footer */}
+            {!isEditing && (
+                <View style={[styles.footerContainer, { paddingBottom: 16 + insets.bottom }]}>
+                    <TouchableOpacity
+                        style={styles.complaintBtn}
+                        onPress={() => {
+                            if (!user) {
+                                Alert.alert('Login Diperlukan', 'Silakan login terlebih dahulu untuk menyampaikan pengaduan', [
+                                    { text: 'Batal', style: 'cancel' },
+                                    { text: 'Login', onPress: () => navigation.navigate('Login') }
+                                ]);
+                                return;
+                            }
+                            navigation.navigate('CreatePengaduan', { dinasId: dinas.id, dinasNama: dinas.nama });
+                        }}
+                    >
+                        <Icon name="megaphone-outline" size={20} color="#FFF" />
+                        <Text style={styles.complaintBtnText}>SAMPAIKAN PENGADUAN</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+        </SafeAreaView>
     );
 }
 
@@ -401,7 +603,7 @@ const styles = StyleSheet.create({
     },
     navbar: {
         position: 'absolute',
-        top: Platform.OS === 'ios' ? 40 : 32,
+        top: 10,
         left: 0,
         right: 0,
         flexDirection: 'row',
@@ -427,7 +629,7 @@ const styles = StyleSheet.create({
     },
     cancelBtn: {
         position: 'absolute',
-        top: Platform.OS === 'ios' ? 40 : 32,
+        top: 10,
         right: 64,
         height: 40,
         paddingHorizontal: 12,
@@ -610,5 +812,103 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderWidth: 2,
         borderColor: '#FFF'
+    },
+    uploadBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        borderStyle: 'dashed',
+        borderRadius: 8,
+        backgroundColor: '#F8FAFC',
+        gap: 8,
+        marginBottom: 10
+    },
+    uploadBtnText: {
+        color: '#64748B',
+        fontWeight: '600'
+    },
+    footerContainer: {
+        padding: 16,
+        backgroundColor: '#FFFFFF',
+        borderTopWidth: 1,
+        borderTopColor: '#E2E8F0',
+    },
+    complaintBtn: {
+        backgroundColor: '#445eefff',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 14,
+        borderRadius: 8,
+        gap: 8,
+    },
+    complaintBtnText: {
+        color: '#FFFFFF',
+        fontWeight: '900',
+        fontSize: 16,
+        letterSpacing: 1,
+    },
+    previewImage: {
+        width: '100%',
+        height: 200,
+        borderRadius: 8,
+        marginBottom: 10,
+        backgroundColor: '#F1F5F9'
+    },
+    strukturImageContainer: {
+        width: '100%',
+        height: 250,
+        backgroundColor: '#F8FAFC',
+        borderRadius: 8,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#F1F5F9'
+    },
+    strukturImage: {
+        width: '100%',
+        height: '100%'
+    },
+    emptyText: {
+        color: '#94A3B8',
+        fontStyle: 'italic',
+        fontSize: 13
+    },
+    hintText: {
+        fontSize: 11,
+        color: '#94A3B8',
+        marginTop: 4,
+        marginBottom: 8
+    },
+    socialGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginTop: 8
+    },
+    modalContainer: {
+        flex: 1,
+        backgroundColor: '#000',
+    },
+    modalCloseBtn: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 50 : 20,
+        right: 20,
+        zIndex: 10,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        padding: 8,
+        borderRadius: 20,
+    },
+    socialBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#F1F5F9',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#E2E8F0'
     }
 });

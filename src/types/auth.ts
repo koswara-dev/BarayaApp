@@ -27,6 +27,8 @@ export interface AuthState {
     user: User | null;
     token: string | null;
     refreshToken: string | null;
+    isVerified?: boolean;
+    isPhoneNumberVerified?: boolean;
     isLoading: boolean;
     isHydrated: boolean;
 

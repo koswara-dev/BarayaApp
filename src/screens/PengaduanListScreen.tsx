@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
     View,
     Text,
@@ -10,7 +10,6 @@ import {
     Image,
     StatusBar,
     Platform,
-    Animated,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -81,6 +80,15 @@ export default function PengaduanListScreen() {
     const navigation = useNavigation<any>();
     const { list, loading, fetchPengaduan, hasMore, page } = usePengaduanStore();
     const user = useAuthStore((state) => state.user);
+
+    const sortedList = useMemo(() => {
+        if (!list) return [];
+        return [...list].sort((a, b) => {
+            const dateA = new Date(a.createdAt).getTime();
+            const dateB = new Date(b.createdAt).getTime();
+            return dateB - dateA;
+        });
+    }, [list]);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     useEffect(() => {
@@ -178,7 +186,7 @@ export default function PengaduanListScreen() {
                 renderSkeletonList()
             ) : (
                 <FlatList
-                    data={list}
+                    data={sortedList}
                     renderItem={renderItem}
                     keyExtractor={(item) => String(item.id)}
                     contentContainerStyle={styles.listContent}

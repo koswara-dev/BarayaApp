@@ -18,8 +18,12 @@ import LoadingOverlay from '../components/LoadingOverlay';
 import CustomAlert from '../components/CustomAlert';
 
 export default function OtpVerificationScreen({ navigation, route }: any) {
-    const { email } = route.params || { email: 'warga@kuningan.go.id' };
+    const { email, phoneNumber, verificationType = 'email', userId } = route.params || { email: 'warga@kuningan.go.id' };
     const showToast = useToastStore((state) => state.showToast);
+    
+    // Determine if using WhatsApp
+    const isWhatsApp = verificationType === 'whatsapp';
+    const targetValue = isWhatsApp ? phoneNumber : email;
 
     const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
@@ -78,7 +82,19 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
         setLoading(true);
         setError('');
         try {
-            const response = await api.post('/auth/verify-otp', { email, otp: otpCode });
+            let response;
+            
+            if (isWhatsApp && userId) {
+                // New endpoint for Phone Verification
+                response = await api.post(`/users/${userId}/verify-phone-number`, { otp: otpCode });
+            } else {
+                // Standard Email Verification
+                const payload = isWhatsApp 
+                    ? { phoneNumber: targetValue, otp: otpCode } 
+                    : { email: targetValue, otp: otpCode };
+                response = await api.post('/auth/verify-otp', payload);
+            }
+
             if (response.data && (response.data.success || response.status === 200)) {
                 setLoading(false);
                 setShowAlert(true);
@@ -98,7 +114,18 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
 
         setLoading(true);
         try {
-            const response = await api.post('/auth/resend-otp', { email });
+            let response;
+
+            if (isWhatsApp && userId) {
+                 // New endpoint for Phone Verification Request
+                 response = await api.post(`/users/${userId}/request-phone-verification`);
+            } else {
+                const payload = isWhatsApp 
+                    ? { phoneNumber: targetValue } 
+                    : { email: targetValue };
+                response = await api.post('/auth/resend-otp', payload);
+            }
+
             if (response.data && (response.data.success || response.status === 200)) {
                 showToast("Kode OTP baru telah dikirim", "success");
                 setTimer(60);
@@ -168,7 +195,7 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
                 {/* Visual Icon */}
                 <View style={styles.logoWrapper}>
                     <View style={styles.logoBox}>
-                        <Icon name="lock-open" size={32} color="#FFB800" />
+                        <Icon name={isWhatsApp ? "logo-whatsapp" : "lock-open"} size={32} color="#FFB800" />
                     </View>
                 </View>
 
@@ -186,9 +213,9 @@ export default function OtpVerificationScreen({ navigation, route }: any) {
                 )}
 
                 <Text style={styles.subtitle}>
-                    Kode verifikasi 6 digit telah dikirim ke email
+                    Kode verifikasi 6 digit telah dikirim ke {isWhatsApp ? 'WhatsApp' : 'email'}
                 </Text>
-                <Text style={styles.emailText}>{email}</Text>
+                <Text style={styles.emailText}>{targetValue}</Text>
 
                 {/* OTP Inputs */}
                 <View style={styles.otpWrapper}>

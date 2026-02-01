@@ -105,7 +105,7 @@ export default function RegisterScreen({ navigation }: any) {
 
     const handleNextToStep2 = async () => {
         if (validity.fullName !== 'valid') { showToast("Nama lengkap minimal 3 karakter", "error"); return; }
-        if (validity.nik !== 'valid') { showToast("NIK harus 16 digit angka", "error"); return; }
+        if (formData.nik.length > 0 && validity.nik !== 'valid') { showToast("NIK harus 16 digit angka", "error"); return; }
         if (validity.phoneNumber !== 'valid') { showToast("Nomor telepon tidak valid", "error"); return; }
         if (validity.alamat !== 'valid') { showToast("Alamat minimal 10 karakter", "error"); return; }
 
@@ -226,12 +226,12 @@ export default function RegisterScreen({ navigation }: any) {
                             {validity.fullName === 'invalid' ? 'Nama minimal 3 karakter' : 'Masukkan nama lengkap sesuai KTP'}
                         </Text>
 
-                        <Text style={styles.inputLabel}>NIK</Text>
+                        <Text style={styles.inputLabel}>NIK (Opsional)</Text>
                         <View style={[styles.inputBox, { borderColor: getBorderColor(validity.nik) }]}>
                             <Icon name="card-outline" size={20} color={getIconColor(validity.nik)} />
                             <TextInput
                                 style={styles.input}
-                                placeholder="16 Digit NIK"
+                                placeholder="16 Digit NIK (Opsional)"
                                 placeholderTextColor="#94A3B8"
                                 value={formData.nik}
                                 onChangeText={(val) => handleChange('nik', val.replace(/\D/g, ''))}
@@ -241,7 +241,7 @@ export default function RegisterScreen({ navigation }: any) {
                             {validity.nik === 'valid' && <Icon name="checkmark-circle" size={20} color="#10B981" />}
                         </View>
                         <Text style={[styles.helperText, validity.nik === 'invalid' && styles.errorHelper]}>
-                            {validity.nik === 'invalid' ? 'NIK harus 16 digit angka' : 'Masukkan 16 digit nomor induk kependudukan'}
+                            {validity.nik === 'invalid' ? 'NIK harus 16 digit angka' : 'Opsional (jika diisi harus 16 digit)'}
                         </Text>
 
                         <Text style={styles.inputLabel}>Nomor Telepon</Text>

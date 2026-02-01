@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, SectionList, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
 import useNotificationStore, { NotificationItem } from '../stores/notificationStore';
@@ -62,7 +63,8 @@ export default function NotificationScreen({ navigation }: any) {
     const [activeTab, setActiveTab] = useState('Semua');
 
     useEffect(() => {
-        fetchNotifications(false, undefined, user?.camatId);
+        const userId = user?.role === Role.USER ? user?.id : undefined;
+        fetchNotifications(false, undefined, user?.camatId, false, userId);
         // Polling is now handled globally in RootNavigator to ensure push notifications work on all screens
     }, []);
 
@@ -82,7 +84,7 @@ export default function NotificationScreen({ navigation }: any) {
         if (user?.role === Role.USER) {
             filteredList = filteredList.filter(item => {
                 const cat = (item.category || '').toUpperCase();
-                return cat === 'EVENT' || cat === 'BERITA' || cat === 'SAMSAT';
+                return cat === 'EVENT' || cat === 'BERITA' || cat === 'SAMSAT' || cat === 'PENGADUAN';
             });
         }
 
@@ -222,7 +224,7 @@ export default function NotificationScreen({ navigation }: any) {
     };
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
             {/* Header */}
@@ -236,7 +238,10 @@ export default function NotificationScreen({ navigation }: any) {
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Notifikasi</Text>
                 </View>
-                <TouchableOpacity onPress={() => fetchNotifications(false, undefined, user?.camatId)}>
+                <TouchableOpacity onPress={() => {
+                    const userId = user?.role === Role.USER ? user?.id : undefined;
+                    fetchNotifications(false, undefined, user?.camatId, false, userId);
+                }}>
                     <MaterialIcon name="refresh" size={24} color="#94A3B8" />
                 </TouchableOpacity>
             </View>
@@ -258,7 +263,10 @@ export default function NotificationScreen({ navigation }: any) {
                     stickySectionHeadersEnabled={false}
                     showsVerticalScrollIndicator={false}
                     refreshing={loading}
-                    onRefresh={() => fetchNotifications(false, undefined, user?.camatId)}
+                    onRefresh={() => {
+                        const userId = user?.role === Role.USER ? user?.id : undefined;
+                        fetchNotifications(false, undefined, user?.camatId, false, userId);
+                    }}
                     onEndReached={handleLoadMore}
                     onEndReachedThreshold={0.3}
                     ListFooterComponent={renderFooter}
@@ -270,7 +278,7 @@ export default function NotificationScreen({ navigation }: any) {
                     }
                 />
             )}
-        </View>
+        </SafeAreaView>
     );
 }
 

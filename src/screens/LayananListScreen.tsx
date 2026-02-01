@@ -14,9 +14,10 @@ import {
     FlatList
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useDebounce } from 'use-debounce';
 import useLayananStore from '../stores/layananStore';
+import useAuthStore from '../stores/authStore';
 import SkeletonShimmer from '../components/SkeletonShimmer';
 import { getImageUrl } from '../config/api';
 import { PermissionGuard } from '../components/PermissionGuard';
@@ -40,12 +41,14 @@ const LayananCardSkeleton = () => (
 
 export default function LayananListScreen() {
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
     const { layanan, loading, fetchLayanan, hasMore, page, dinas, fetchDinas } = useLayananStore();
+    const { user } = useAuthStore();
     const [refreshing, setRefreshing] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedDinasId, setSelectedDinasId] = useState<number | undefined>(undefined);
+    const [selectedDinasId, setSelectedDinasId] = useState<number | undefined>(route.params?.dinasId);
     const [debouncedQuery] = useDebounce(searchQuery, 500);
 
     useEffect(() => {
@@ -149,29 +152,31 @@ export default function LayananListScreen() {
                 </View>
 
                 {/* Filter Dinas */}
-                <View style={styles.filterWrapper}>
-                    <ScrollView 
-                        horizontal 
-                        showsHorizontalScrollIndicator={false} 
-                        contentContainerStyle={styles.filterContent}
-                    >
-                        <TouchableOpacity 
-                            style={[styles.filterChip, !selectedDinasId && styles.activeFilterChip]} 
-                            onPress={() => setSelectedDinasId(undefined)}
+                {user?.role !== Role.ADMIN && user?.role !== Role.STAFF && (
+                    <View style={styles.filterWrapper}>
+                        <ScrollView 
+                            horizontal 
+                            showsHorizontalScrollIndicator={false} 
+                            contentContainerStyle={styles.filterContent}
                         >
-                            <Text style={[styles.filterText, !selectedDinasId && styles.activeFilterText]}>Semua</Text>
-                        </TouchableOpacity>
-                        {dinas.map((d) => (
                             <TouchableOpacity 
-                                key={d.id} 
-                                style={[styles.filterChip, selectedDinasId === d.id && styles.activeFilterChip]}
-                                onPress={() => setSelectedDinasId(selectedDinasId === d.id ? undefined : d.id)}
+                                style={[styles.filterChip, !selectedDinasId && styles.activeFilterChip]} 
+                                onPress={() => setSelectedDinasId(undefined)}
                             >
-                                <Text style={[styles.filterText, selectedDinasId === d.id && styles.activeFilterText]}>{d.dinasKode || d.nama}</Text>
+                                <Text style={[styles.filterText, !selectedDinasId && styles.activeFilterText]}>Semua</Text>
                             </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
+                            {dinas.map((d) => (
+                                <TouchableOpacity 
+                                    key={d.id} 
+                                    style={[styles.filterChip, selectedDinasId === d.id && styles.activeFilterChip]}
+                                    onPress={() => setSelectedDinasId(selectedDinasId === d.id ? undefined : d.id)}
+                                >
+                                    <Text style={[styles.filterText, selectedDinasId === d.id && styles.activeFilterText]}>{d.dinasKode}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
             </View>
 
             {showSkeleton ? (

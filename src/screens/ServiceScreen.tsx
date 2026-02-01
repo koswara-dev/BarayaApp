@@ -11,7 +11,10 @@ import {
   Platform,
   Image,
   FlatList,
+  RefreshControl,
+  Animated,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from "react-native-vector-icons/Ionicons";
 
 import { Service } from "../types/service";
@@ -22,6 +25,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabParamList, RootStackParamList } from '../navigation/types';
 import { getImageUrl } from '../config/api';
 import SkeletonShimmer from '../components/SkeletonShimmer';
+
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<BottomTabParamList, 'Layanan'>,
@@ -129,6 +133,52 @@ export default function LayananScreen({ navigation, route }: Props) {
     fetchDinas({ size: 50 });
   }, []);
 
+  // Hint Animation
+  const [showHint, setShowHint] = useState(false);
+  const fadeAnim = useState(new Animated.Value(0))[0];
+  const translateY = useState(new Animated.Value(-20))[0];
+
+  useEffect(() => {
+    // Show hint after initial load
+    if (!isInitialLoad && !loading) {
+        setShowHint(true);
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 500,
+                useNativeDriver: true
+            }),
+            Animated.timing(translateY, {
+                toValue: 0,
+                duration: 500,
+                useNativeDriver: true
+            })
+        ]).start();
+
+        // Hide after 5 seconds
+        const timer = setTimeout(() => {
+            hideHint();
+        }, 5000);
+
+        return () => clearTimeout(timer);
+    }
+  }, [isInitialLoad, loading]);
+
+  const hideHint = () => {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true
+        }),
+        Animated.timing(translateY, {
+            toValue: -20,
+            duration: 300,
+            useNativeDriver: true
+        })
+    ]).start(() => setShowHint(false));
+  };
+
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       loadData();
@@ -136,6 +186,20 @@ export default function LayananScreen({ navigation, route }: Props) {
 
     return () => clearTimeout(delayDebounceFn);
   }, [search, selectedDinasId]);
+  
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setSearch("");
+    setSelectedDinasId(undefined);
+    
+    // Fetch initial data
+    await fetchLayanan({ page: 0, size: 10, name: '', dinasId: undefined });
+    await fetchDinas({ size: 50 });
+    
+    setRefreshing(false);
+  };
 
   const loadData = async () => {
     const query = search || '';
@@ -175,7 +239,7 @@ export default function LayananScreen({ navigation, route }: Props) {
   const showSkeleton = isInitialLoad && loading;
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header */}
@@ -271,7 +335,7 @@ export default function LayananScreen({ navigation, route }: Props) {
                           style={[styles.categoryChip, selectedDinasId === d.id && styles.activeChip]}
                           onPress={() => setSelectedDinasId(selectedDinasId === d.id ? undefined : d.id)}
                       >
-                          <Text style={[styles.categoryText, selectedDinasId === d.id && styles.activeCategoryText]}>{d.dinasKode || d.nama}</Text>
+                          <Text style={[styles.categoryText, selectedDinasId === d.id && styles.activeCategoryText]}>{d.dinasKode}</Text>
                       </TouchableOpacity>
                   ))}
               </ScrollView>
@@ -307,8 +371,37 @@ export default function LayananScreen({ navigation, route }: Props) {
         contentContainerStyle={{ paddingBottom: 100 }}
         onEndReached={loadMoreData}
         onEndReachedThreshold={0.5}
+        refreshControl={
+            <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={["#FFB800"]}
+                tintColor="#FFB800"
+            />
+        }
       />
-    </View>
+
+      {/* Pull Down Hint Toast */}
+      {showHint && (
+          <Animated.View 
+            style={[
+                styles.hintToast, 
+                { 
+                    opacity: fadeAnim,
+                    transform: [{ translateY }]
+                }
+            ]}
+          >
+              <View style={styles.hintContent}>
+                  <Icon name="arrow-down-circle" size={20} color="#FFFFFF" />
+                  <Text style={styles.hintText}>Tarik ke bawah untuk memuat ulang data</Text>
+                  <TouchableOpacity onPress={hideHint} style={{ marginLeft: 8 }}>
+                      <Icon name="close" size={16} color="rgba(255,255,255,0.8)" />
+                  </TouchableOpacity>
+              </View>
+          </Animated.View>
+      )}
+    </SafeAreaView>
   );
 }
 
@@ -324,7 +417,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 56 : 24,
+    paddingTop: 16,
     paddingBottom: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
@@ -502,7 +595,31 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 13,
     color: '#94A3B8',
-    fontWeight: '500',
     textAlign: 'center',
   },
+  hintToast: {
+      position: 'absolute',
+      top: 100, // Below header
+      alignSelf: 'center',
+      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+      borderRadius: 50,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      zIndex: 100,
+      elevation: 5,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 3.84,
+  },
+  hintContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+  },
+  hintText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '600',
+  }
 });

@@ -15,7 +15,10 @@ export default function SplashScreen({ onCheckComplete }: Props) {
         try {
             // Check version from API
             const response = await api.get('/pengaturan');
-            const remoteVersion = response.data?.data?.versi || response.data?.versi;
+            const data = response.data?.data || response.data;
+            const remoteVersion = data?.versi;
+            const urlPlayStore = data?.urlPlayStore;
+            const urlAppStore = data?.urlAppStore;
             
             // Current app version (hardcoded or from package.json)
             const currentVersion = '1.0.0'; 
@@ -29,10 +32,16 @@ export default function SplashScreen({ onCheckComplete }: Props) {
                             text: 'Update Aplikasi',
                             onPress: () => {
                                 // Default store URLs or from API
-                                const url = Platform.OS === 'android'
-                                    ? 'market://details?id=com.barayaapp' // Replace with actual ID if known
-                                    : 'https://apps.apple.com/app/id123456789';
-                                Linking.openURL(url).catch(err => console.error('An error occurred', err));
+                                let url = '';
+                                if (Platform.OS === 'android') {
+                                    url = urlPlayStore || 'market://details?id=com.barayaapp';
+                                } else {
+                                    url = urlAppStore || 'https://apps.apple.com/app/id123456789';
+                                }
+                                
+                                if (url) {
+                                    Linking.openURL(url).catch(err => console.error('An error occurred', err));
+                                }
                                 // Do not proceed
                             }
                         }

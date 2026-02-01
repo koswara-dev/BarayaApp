@@ -1,5 +1,5 @@
 import { AppRegistry } from 'react-native';
-import notifee, { EventType } from '@notifee/react-native';
+import notifee, { EventType, AndroidImportance, AndroidVisibility } from '@notifee/react-native';
 import { getMessaging, setBackgroundMessageHandler, requestPermission } from '@react-native-firebase/messaging';
 import App from './App';
 import { name as appName } from './app.json';
@@ -32,12 +32,27 @@ setBackgroundMessageHandler(getMessaging(), async remoteMessage => {
     // Explicitly check for DARURAT to ensure alarm sound
     if (category === 'DARURAT' || category === 'darurat') {
         channelId = 'darurat';
+        
+        // Ensure critical channel exists with correct sound settings
+        // This acts as a safeguard if the app hasn't run createChannels() yet
+        await notifee.createChannel({
+            id: 'darurat',
+            name: 'Layanan Darurat',
+            lights: true,
+            vibration: true,
+            sound: 'alarm',
+            importance: AndroidImportance.HIGH,
+            visibility: AndroidVisibility.PUBLIC,
+            bypassDnd: true
+        });
     } else if (category === 'SAMSAT') {
         channelId = 'samsat';
     } else if (category === 'EVENT') {
         channelId = 'event';
     } else if (category === 'PENGADUAN' || category === 'pengaduan') {
-        channelId = 'pengaduan';
+        // Handle silently or specific channel
+        // channelId = 'pengaduan'; // If we want to show it
+        return; // Current logic returns early
     } else if (category === 'BERITA') {
         channelId = 'berita';
     }
@@ -75,9 +90,5 @@ notifee.onBackgroundEvent(async ({ type, detail }) => {
 
     console.log('Background Event:', type, detail);
 });
-
-
-// Ensure permission is requested early
-requestPermission(getMessaging());
 
 AppRegistry.registerComponent(appName, () => App);

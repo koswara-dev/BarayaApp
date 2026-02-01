@@ -15,6 +15,8 @@ export interface EmergencyReport {
     userId: number;
     dinasId?: number;
     dinasNama?: string;
+    camatId?: number;
+    camatKecamatan?: string;
     fullName: string;
     phoneNumber: string;
     latitude: number;
@@ -134,6 +136,10 @@ const useEmergencyStore = create<EmergencyStore>()(
 
                     if (data.dinasId) {
                         parts.push({ name: 'dinasId', data: String(data.dinasId) });
+                    }
+
+                    if (data.camatId) {
+                        parts.push({ name: 'camatId', data: String(data.camatId) });
                     }
 
                     if (data.foto && data.foto.uri) {

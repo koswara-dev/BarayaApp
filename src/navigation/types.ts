@@ -52,6 +52,11 @@ export type RootStackParamList = {
     CamatList: undefined;
     CamatDetail: { id: number };
     CreateCamat: { item?: any };
+    AllFeatures: undefined;
+    Transportasi: undefined;
+    Ambulans: undefined;
+    Pajak: undefined;
+    CctvMonitor: undefined;
 };
 
 export type BottomTabParamList = {

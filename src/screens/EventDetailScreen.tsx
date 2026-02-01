@@ -33,7 +33,7 @@ export default function EventDetailScreen() {
     const showToast = useToastStore(state => state.showToast);
 
     // Permissions
-    const canEdit = user?.role === Role.SUPERADMIN || user?.role === Role.EXECUTIVE || user?.role === Role.ADMIN;
+    const canEdit = user?.role === Role.SUPERADMIN || user?.role === Role.EXECUTIVE || user?.role === Role.ADMIN || user?.role === Role.STAFF;
 
     // State
     const [currentEvent, setCurrentEvent] = useState<Event | null>(event || null);

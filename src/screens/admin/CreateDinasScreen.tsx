@@ -14,16 +14,17 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
-import useLayananStore from '../../stores/layananStore';
+import useDinasStore from '../../stores/dinasStore';
 import useToastStore from '../../stores/toastStore';
 import useNotificationStore from '../../stores/notificationStore';
 import LoadingOverlay from '../../components/LoadingOverlay';
 import IndustrialFormSection from '../../components/Form/IndustrialFormSection';
 import IndustrialInput from '../../components/Form/IndustrialInput';
+import IndustrialImagePicker from '../../components/Form/IndustrialImagePicker';
 
 export default function CreateDinasScreen() {
     const navigation = useNavigation<any>();
-    const { createDinas, loading } = useLayananStore();
+    const { createDinas, loading } = useDinasStore();
     const { sendNotification } = useNotificationStore();
     const showToast = useToastStore((state) => state.showToast);
 
@@ -35,7 +36,12 @@ export default function CreateDinasScreen() {
         longitude: '',
         website: '',
         namaKadis: '',
+        jumlahPegawai: '',
+        dataPrestasi: '',
+        mediaSosial: ''
     });
+
+    const [photo, setPhoto] = useState<any>(null);
 
     const [confirmModalVisible, setConfirmModalVisible] = useState(false);
 
@@ -69,7 +75,10 @@ export default function CreateDinasScreen() {
                 ...form,
                 latitude: form.latitude ? parseFloat(form.latitude) : null,
                 longitude: form.longitude ? parseFloat(form.longitude) : null,
+                fotoStruktur: photo 
             });
+            
+            if (!result) return; // If create failed (null returned)
 
             // Broadcast notification
             await sendNotification({
@@ -143,6 +152,29 @@ export default function CreateDinasScreen() {
 
                 <View style={{ height: 12 }} />
 
+                 <IndustrialInput
+                    placeholder="Jumlah Pegawai"
+                    keyboardType="numeric"
+                    value={form.jumlahPegawai}
+                    onChangeText={(val) => setForm({ ...form, jumlahPegawai: val })}
+                />
+
+                <View style={{ height: 12 }} />
+
+                 <IndustrialInput
+                    placeholder="Foto Struktur Organisasi (Upload)"
+                    editable={false}
+                    value={photo ? "Foto Terpilih" : "Belum ada foto"}
+                    style={{ color: '#94A3B8' }}
+                />
+                 <IndustrialImagePicker
+                    photo={photo}
+                    onPhotoSelected={setPhoto}
+                    onPhotoRemoved={() => setPhoto(null)}
+                />
+
+                <View style={{ height: 12 }} />
+
                 <IndustrialInput
                     placeholder="Website Resmi (https://...)"
                     value={form.website}
@@ -156,6 +188,25 @@ export default function CreateDinasScreen() {
                     multiline
                     value={form.alamat}
                     onChangeText={(val) => setForm({ ...form, alamat: val })}
+                />
+
+                 <View style={{ height: 12 }} />
+
+                <IndustrialFormSection title="TAMBAHAN INFO" stripeColor="#8B5CF6" />
+                
+                <IndustrialInput
+                    placeholder="Data Prestasi"
+                    multiline
+                    value={form.dataPrestasi}
+                    onChangeText={(val) => setForm({ ...form, dataPrestasi: val })}
+                />
+
+                <View style={{ height: 12 }} />
+
+                <IndustrialInput
+                    placeholder="Media Sosial (Pisahkan koma)"
+                    value={form.mediaSosial}
+                    onChangeText={(val) => setForm({ ...form, mediaSosial: val })}
                 />
 
                 <View style={{ height: 12 }} />
@@ -248,6 +299,16 @@ export default function CreateDinasScreen() {
                                     <Icon name="globe" size={16} color="#FFB800" />
                                     <Text style={styles.summaryValue}>{form.website || '-'}</Text>
                                 </View>
+                            </View>
+
+                            <View style={styles.summaryItem}>
+                                <Text style={styles.summaryLabel}>JUMLAH PEGAWAI</Text>
+                                <Text style={styles.summaryValue}>{form.jumlahPegawai || '-'}</Text>
+                            </View>
+
+                             <View style={styles.summaryItem}>
+                                <Text style={styles.summaryLabel}>MEDIA SOSIAL</Text>
+                                <Text style={styles.summaryValue}>{form.mediaSosial || '-'}</Text>
                             </View>
 
                             {form.latitude && form.longitude && (

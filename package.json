@@ -1,6 +1,6 @@
 {
   "name": "BarayaApp",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -45,6 +45,7 @@
     "react-native-svg": "^15.15.1",
     "react-native-vector-icons": "^10.3.0",
     "react-native-webview": "^13.16.0",
+    "react-native-youtube-iframe": "^2.4.1",
     "rn-tourguide": "^3.3.2",
     "use-debounce": "^10.0.6",
     "zustand": "^5.0.9"

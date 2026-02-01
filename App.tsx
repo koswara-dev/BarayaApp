@@ -49,6 +49,9 @@ function App() {
       let unsubscribeFCM: (() => void) | undefined;
 
       const setupFCM = async () => {
+          // Initialize channels (critical for custom sounds)
+          await notificationHelper.createChannels();
+
           const hasPermission = await notificationHelper.requestUserPermission();
           if (hasPermission) {
               await notificationHelper.getFCMToken();

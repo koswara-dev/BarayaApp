@@ -11,8 +11,10 @@ import {
     TextInput,
     StatusBar,
     Share,
-    Dimensions
+    Dimensions,
+    Platform
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
@@ -55,6 +57,7 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
     const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
     const [loading, setLoading] = useState(true);
     const [expandedAbout, setExpandedAbout] = useState(false);
+    const insets = useSafeAreaInsets();
 
     // Feedback Form State
     const [myRating, setMyRating] = useState(0);
@@ -172,9 +175,13 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
     };
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
             {/* ... (Header and Hero remain same) */}
-            <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+            <StatusBar
+                barStyle="dark-content"
+                backgroundColor="#FFFFFF"
+                translucent={Platform.OS === 'android' && typeof Platform.Version === 'number' && Platform.Version >= 33}
+            />
 
             <View style={styles.headerWhite}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
@@ -214,6 +221,13 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
                     <View style={styles.deptInfo}>
                         <Text style={styles.deptLabel}>DINAS PENANGGUNG JAWAB</Text>
                         <Text style={styles.deptName}>{service.dinasNama || 'Dinas Penanaman Modal dan PTSP'}</Text>
+                        <TouchableOpacity 
+                            onPress={() => navigation.navigate('DinasDetail', { id: service.dinasId })}
+                            style={styles.infoDinasBtn}
+                        >
+                            <Text style={styles.infoDinasText}>Lihat Informasi Dinas</Text>
+                            <Icon name="arrow-forward" size={12} color="#3B82F6" />
+                        </TouchableOpacity>
                     </View>
                 </View>
 
@@ -226,13 +240,7 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
                         </View>
                         <Text style={styles.infoValue}>{service.estimasiWaktu || '14'} Hari Kerja</Text>
                     </View>
-                    <View style={styles.infoBox}>
-                        <View style={styles.infoIconLabel}>
-                            <Icon name="wallet-outline" size={16} color="#64748B" />
-                            <Text style={styles.infoLabel}>BIAYA</Text>
-                        </View>
-                        <Text style={styles.infoValue}>Retribusi Daerah</Text>
-                    </View>
+
                     <View style={[styles.infoBox, { borderBottomWidth: 0 }]}>
                         <View style={styles.infoIconLabel}>
                             <Icon name="call-outline" size={16} color="#64748B" />
@@ -375,7 +383,8 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
             </ScrollView>
 
             {/* Bottom Button */}
-            <View style={styles.footer}>
+            {/* Bottom Button */}
+            <View style={[styles.footer, { paddingBottom: 24 + insets.bottom }]}>
                 <TouchableOpacity
                     style={styles.applyBtn}
                     onPress={() => showToast("Layanan ini dapat diajukan secara langsung di kantor dinas terkait.", "info")}
@@ -384,7 +393,7 @@ export default function ServiceDetailScreen({ route, navigation }: Props) {
                     <Text style={styles.applyBtnText}>Ajukan Permohonan</Text>
                 </TouchableOpacity>
             </View>
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -403,7 +412,8 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         borderBottomWidth: 1,
         borderBottomColor: '#F1F5F9',
-        zIndex: 100,
+        // zIndex removed to prevent covering Toast on Android < 13
+        elevation: 0,
     },
     headerTitleDark: {
         fontSize: 16,
@@ -513,6 +523,17 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#0F172A',
         fontWeight: '700',
+    },
+    infoDinasBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+        gap: 4
+    },
+    infoDinasText: {
+        fontSize: 12,
+        color: '#3B82F6',
+        fontWeight: '600'
     },
     infoGrid: {
         flexDirection: 'row',

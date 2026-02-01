@@ -43,13 +43,13 @@ interface MenuItem {
 
 // Define the menu structure based on the image
 const PUBLIC_SERVICES: MenuItem[] = [
-    { label: 'List\nPengaduan', icon: 'message-alert-outline', type: 'mci', route: 'AdminPengaduanList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF] },
-    { label: 'List\nLayanan', icon: 'room-service-outline', type: 'mci', route: 'LayananList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF] }, // service list
-    { label: 'List\nDarurat', icon: 'alert-circle-outline', type: 'mci', route: 'DaruratList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF] },
-    { label: 'List\nBerita', icon: 'newspaper-variant-outline', type: 'mci', route: 'AdminBeritaList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF] },
+    { label: 'List\nPengaduan', icon: 'message-alert-outline', type: 'mci', route: 'AdminPengaduanList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF, Role.ASDA] },
+    { label: 'List\nLayanan', icon: 'room-service-outline', type: 'mci', route: 'LayananList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF, Role.ASDA] },
+    { label: 'List\nDarurat', icon: 'alert-circle-outline', type: 'mci', route: 'DaruratList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF, Role.ASDA] },
+    { label: 'List\nBerita', icon: 'newspaper-variant-outline', type: 'mci', route: 'AdminBeritaList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF, Role.ASDA] },
     { label: 'List\nEvent', icon: 'calendar-month-outline', type: 'mci', route: 'EventList' },
     { label: 'Buat\nEvent', icon: 'calendar-plus', type: 'mci', route: 'CreateEvent', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN] },
-    { label: 'Samsat\nKeliling', icon: 'card-outline', type: 'ion', route: 'SamsatKeliling', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF] },
+    { label: 'Samsat\nKeliling', icon: 'card-outline', type: 'ion', route: 'SamsatKeliling', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.STAFF, Role.ASDA] },
 ];
 
 const INTERNAL_MANAGEMENT: MenuItem[] = [
@@ -58,7 +58,7 @@ const INTERNAL_MANAGEMENT: MenuItem[] = [
     { label: 'List\nDinas', icon: 'office-building-outline', type: 'mci', route: 'DinasList' },
     { label: 'Buat\nDinas', icon: 'office-building-outline', type: 'mci', route: 'CreateDinas', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE] },
     { label: 'Buat\nLayanan', icon: 'room-service-outline', type: 'mci', route: 'CreateLayanan', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN] },
-    { label: 'Analisis\nAI', icon: 'head-snowflake-outline', type: 'mci', route: 'AnalisisAIList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN] },
+    { label: 'Analisis\nAI', icon: 'head-snowflake-outline', type: 'mci', route: 'AnalisisAIList', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE, Role.ADMIN, Role.ASDA] },
     { label: 'Pengaturan', icon: 'cog-outline', type: 'mci', route: 'Pengaturan', allowedRoles: [Role.SUPERADMIN, Role.EXECUTIVE] },
 ];
 

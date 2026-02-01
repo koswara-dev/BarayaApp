@@ -52,10 +52,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
                 useUserStore.getState().fetchUserProfile(user.id);
             }
 
-            // Register FCM Token
-            // Using dynamic require to avoid potential circular dependency if helper imports store
-            const { notificationHelper } = require('../utils/notificationHelper');
-            await notificationHelper.registerFCMToken(token);
+
 
         } catch (error) {
             console.error('Sign in failed:', error);

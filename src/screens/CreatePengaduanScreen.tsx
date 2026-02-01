@@ -15,9 +15,10 @@ import {
     Animated,
     TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDebounce } from 'use-debounce';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import usePengaduanStore from '../stores/pengaduanStore';
 import useDinasStore from '../stores/dinasStore';
 import useToastStore from '../stores/toastStore';
@@ -29,6 +30,9 @@ import { containsBadWords } from '../utils/badWords';
 
 export default function CreatePengaduanScreen() {
     const navigation = useNavigation<any>();
+    const route = useRoute<any>();
+    const { dinasId: initialDinasId, dinasNama: initialDinasNama } = route.params || {};
+
     const { createPengaduan, loading: storeLoading } = usePengaduanStore();
     const { dinasList: dinas, fetchDinas, loading: dinasLoading } = useDinasStore();
     const showToast = useToastStore((state) => state.showToast);
@@ -36,8 +40,8 @@ export default function CreatePengaduanScreen() {
     // Form State
     const [form, setForm] = useState({
         pesan: '',
-        dinasId: null as number | null,
-        dinasNama: '',
+        dinasId: initialDinasId || null,
+        dinasNama: initialDinasNama || '',
     });
     const [photo, setPhoto] = useState<any>(null);
 
@@ -116,10 +120,11 @@ export default function CreatePengaduanScreen() {
     };
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={styles.container}
-        >
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={{ flex: 1 }}
+            >
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
             <LoadingOverlay
@@ -157,8 +162,9 @@ export default function CreatePengaduanScreen() {
                 <View style={{ height: 12 }} />
 
                 <TouchableOpacity
-                    style={styles.dropdown}
-                    onPress={() => setDinasModalVisible(true)}
+                    style={[styles.dropdown, initialDinasId && styles.dropdownDisabled]}
+                    onPress={() => !initialDinasId && setDinasModalVisible(true)}
+                    disabled={!!initialDinasId}
                 >
                     <View style={styles.dropdownInner}>
                         <Icon name="business-outline" size={20} color="#94A3B8" />
@@ -176,7 +182,7 @@ export default function CreatePengaduanScreen() {
                     photo={photo}
                     onPhotoSelected={setPhoto}
                     onPhotoRemoved={() => setPhoto(null)}
-                    cameraOnly={true}
+                    cameraOnly={false}
                 />
 
                 <View style={styles.footer}>
@@ -325,7 +331,8 @@ export default function CreatePengaduanScreen() {
                     </Animated.View>
                 </View>
             </Modal>
-        </KeyboardAvoidingView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 }
 
@@ -338,8 +345,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'ios' ? 50 : 20,
-        paddingBottom: 20,
+        paddingTop: 16,
+        paddingBottom: 16,
         backgroundColor: '#FFFFFF',
         justifyContent: 'space-between',
         borderBottomWidth: 1,
@@ -368,6 +375,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         minHeight: 52,
+    },
+    dropdownDisabled: {
+        backgroundColor: '#F1F5F9',
+        borderColor: '#E2E8F0',
     },
     dropdownInner: {
         flex: 1,

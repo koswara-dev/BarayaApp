@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, Modal, TouchableOpacity, Image, StatusBar, Platform, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import useUserStore from '../stores/userStore';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -73,8 +74,12 @@ export default function ProfileScreen({ navigation }: any) {
     };
 
     return (
-        <View style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+            <StatusBar
+                barStyle="dark-content"
+                backgroundColor="#FFFFFF"
+                translucent={Platform.OS === 'android' && typeof Platform.Version === 'number' && Platform.Version >= 33}
+            />
 
             {/* Header */}
             <View style={styles.header}>
@@ -219,7 +224,7 @@ export default function ProfileScreen({ navigation }: any) {
                 cancelText="Batal"
                 type="danger"
             />
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -233,11 +238,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'ios' ? 50 : 20,
+        paddingTop: 16,
         paddingBottom: 20,
         backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
         borderBottomColor: '#F1F5F9',
+        elevation: 0,
     },
     headerBtn: {
         width: 40,
@@ -303,6 +309,8 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         color: '#0F172A',
         marginBottom: 6,
+        textAlign: 'center',
+        paddingHorizontal: 24,
     },
     userNik: {
         fontSize: 14,

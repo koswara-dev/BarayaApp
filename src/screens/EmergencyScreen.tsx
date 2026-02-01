@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, StatusBar, ActivityIndicator, Alert, Platform, Image, RefreshControl, Vibration, Modal, Animated, Linking } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import useAuthStore from '../stores/authStore';
@@ -224,7 +225,26 @@ export default function EmergencyScreen() {
         navigation.navigate('MapEmergency', { onLocationSelect: handleLocationSelect });
     };
 
+    const requestCameraPermission = async () => {
+        if (Platform.OS === 'android') {
+            try {
+                const result = await request(PERMISSIONS.ANDROID.CAMERA);
+                return result === RESULTS.GRANTED;
+            } catch (err) {
+                console.warn(err);
+                return false;
+            }
+        }
+        return true; // iOS permission is handled by Info.plist / implicitly
+    };
+
     const handleCamera = async () => {
+        const hasPermission = await requestCameraPermission();
+        if (!hasPermission) {
+            Alert.alert('Izin Kamera', 'Aplikasi membutuhkan izin kamera untuk mengambil foto bukti.');
+            return;
+        }
+        
         const result = await launchCamera({ mediaType: 'photo', quality: 0.5 });
         if (result.assets && result.assets.length > 0) {
             setPhoto(result.assets[0]);
@@ -271,7 +291,7 @@ export default function EmergencyScreen() {
                 pesan: message,
                 dinasId: selectedDinas?.id,
                 dinasNama: selectedDinas?.nama,
-                kecamatanId: selectedKecamatan?.id,
+                camatId: selectedKecamatan?.id,
                 foto: photo
             };
 
@@ -369,7 +389,7 @@ export default function EmergencyScreen() {
         const statusColors = getStatusBadgeColor(activeReport.status);
 
         return (
-            <View style={styles.container}>
+            <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
                 <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
 
                 {/* Header */}
@@ -673,12 +693,12 @@ export default function EmergencyScreen() {
                         </View>
                     </View>
                 </Modal>
-            </View>
+            </SafeAreaView>
         );
     }
 
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
             <LoadingOverlay visible={isSubmitting} message="Mengirim Laporan Darurat..." />
 
@@ -835,6 +855,56 @@ export default function EmergencyScreen() {
                 <Text style={styles.bottomDisclaimer}>
                     Dengan menekan tombol di atas, Anda menyetujui pengiriman data lokasi terkini kepada petugas terkait.
                 </Text>
+
+                {/* Procedure Section */}
+                <View style={styles.procedureSection}>
+                    <View style={styles.procedureHeader}>
+                        <Icon name="information-circle" size={20} color="#3B82F6" />
+                        <Text style={styles.procedureTitle}>PROSEDUR KEDARURATAN</Text>
+                    </View>
+                    
+                    <View style={styles.procedureList}>
+                        <View style={styles.procedureItem}>
+                            <View style={styles.procedureNumberBox}>
+                                <Text style={styles.procedureNumber}>1</Text>
+                            </View>
+                            <View style={styles.procedureContent}>
+                                <Text style={styles.procedureStepTitle}>Tetap Tenang</Text>
+                                <Text style={styles.procedureStepDesc}>Jangan panik. Tarik napas dan coba amati situasi sekitar dengan seksama.</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.procedureItem}>
+                             <View style={styles.procedureNumberBox}>
+                                <Text style={styles.procedureNumber}>2</Text>
+                            </View>
+                            <View style={styles.procedureContent}>
+                                <Text style={styles.procedureStepTitle}>Amankan Diri</Text>
+                                <Text style={styles.procedureStepDesc}>Menjauh dari sumber bahaya (api, bangunan runtuh, kerusuhan) ke tempat yang lebih aman.</Text>
+                            </View>
+                        </View>
+
+                         <View style={styles.procedureItem}>
+                             <View style={styles.procedureNumberBox}>
+                                <Text style={styles.procedureNumber}>3</Text>
+                            </View>
+                            <View style={styles.procedureContent}>
+                                <Text style={styles.procedureStepTitle}>Gunakan Tombol SOS</Text>
+                                <Text style={styles.procedureStepDesc}>Lengkapi data lokasi dan foto kejadian di atas, lalu tekan tombol SOS untuk memanggil bantuan.</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.procedureItem}>
+                             <View style={styles.procedureNumberBox}>
+                                <Text style={styles.procedureNumber}>4</Text>
+                            </View>
+                            <View style={styles.procedureContent}>
+                                <Text style={styles.procedureStepTitle}>Tunggu Petugas</Text>
+                                <Text style={styles.procedureStepDesc}>Aktifkan nada dering handphone agar petugas mudah menghubungi Anda.</Text>
+                            </View>
+                        </View>
+                    </View>
+                </View>
 
             </ScrollView>
 
@@ -1020,7 +1090,7 @@ export default function EmergencyScreen() {
                     </View>
                 </View>
             </Modal>
-        </View>
+        </SafeAreaView>
     );
 }
 
@@ -1040,7 +1110,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'ios' ? 50 : 20,
+        paddingTop: 16,
         paddingBottom: 20,
         backgroundColor: '#FFFFFF',
         justifyContent: 'space-between',
@@ -1577,6 +1647,62 @@ const styles = StyleSheet.create({
         borderColor: '#E2E8F0',
         position: 'relative',
         overflow: 'hidden',
+    },
+    procedureSection: {
+        marginTop: 10,
+        marginHorizontal: 16,
+        marginBottom: 40,
+        backgroundColor: '#F8FAFC',
+        borderRadius: 12,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+    },
+    procedureHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
+        gap: 8,
+    },
+    procedureTitle: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: '#0F172A',
+        letterSpacing: 0.5,
+    },
+    procedureList: {
+        gap: 16,
+    },
+    procedureItem: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    procedureNumberBox: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#DBEAFE',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    procedureNumber: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#3B82F6',
+    },
+    procedureContent: {
+        flex: 1,
+    },
+    procedureStepTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#1E293B',
+        marginBottom: 2,
+    },
+    procedureStepDesc: {
+        fontSize: 12,
+        color: '#64748B',
+        lineHeight: 18,
     },
     mapBgPlaceholder: {
         position: 'absolute',

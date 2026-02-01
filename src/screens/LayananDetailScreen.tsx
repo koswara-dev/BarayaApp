@@ -35,7 +35,7 @@ export default function LayananDetailScreen() {
     const showToast = useToastStore(state => state.showToast);
 
     // Permissions
-    const canEdit = user?.role === Role.SUPERADMIN || user?.role === Role.ADMIN;
+    const canEdit = user?.role === Role.SUPERADMIN || user?.role === Role.ADMIN || user?.role === Role.STAFF;
 
     // State
     const [service, setService] = useState<Service | null>(item || null);

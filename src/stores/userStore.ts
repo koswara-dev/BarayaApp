@@ -16,6 +16,7 @@ interface UserProfile {
     role: string;
     urlFoto: string;
     verified: boolean;
+    isPhoneNumberVerified?: boolean;
     tempatLahir?: string;
     tanggalLahir?: string;
     jenisKelamin?: string;

@@ -15,7 +15,7 @@ import {
   Linking
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import MaterialIcon from 'react-native-vector-icons/MaterialIcons';
@@ -29,6 +29,9 @@ import usePengaturanStore from '../stores/pengaturanStore';
 import useBeritaStore from '../stores/beritaStore';
 import api, { getImageUrl } from '../config/api';
 import { useDebounce } from 'use-debounce';
+import useFCMStore from '../stores/fcmStore';
+import { notificationHelper } from '../utils/notificationHelper';
+import CctvListComponent from '../components/CctvListComponent';
 
 import GetLocation from 'react-native-get-location';
 import { TourGuideProvider, TourGuideZone, useTourGuideController } from 'rn-tourguide';
@@ -58,6 +61,7 @@ const HomeScreenContent = () => {
   const navigation = useNavigation<any>();
   const user = useAuthStore((state) => state.user);
   const { profile, fetchUserProfile } = useUserStore();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (canStart) {
@@ -112,7 +116,7 @@ const HomeScreenContent = () => {
     setRefreshing(true);
     await Promise.all([
       fetchWeather(),
-      fetchLayanan({ size: 8 }),
+      fetchLayanan({ size: 8, ignoreAuthDinasId: true }),
       fetchEvents({ size: 5 }),
       fetchBerita({ page: 0 }),
       fetchPengaturan()
@@ -197,12 +201,19 @@ const HomeScreenContent = () => {
 
   useEffect(() => {
     fetchWeather();
-    fetchLayanan({ size: 8 });
+    fetchLayanan({ size: 8, ignoreAuthDinasId: true });
     fetchEvents({ size: 5 });
     fetchBerita({ page: 0 });
     fetchPengaturan();
     
     startPolling();
+
+    // Register FCM Token
+    const token = useAuthStore.getState().token;
+    if (token) {
+      useFCMStore.getState().registerFCMToken(token);
+    }
+
     return () => stopPolling();
   }, []); // Run once on mount
 
@@ -245,8 +256,8 @@ const HomeScreenContent = () => {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor="#F0F4F8" barStyle="dark-content" />
+    <View style={styles.safeArea}>
+      <StatusBar backgroundColor="transparent" barStyle="dark-content" translucent />
 
       <ScrollView
         style={styles.container}
@@ -269,8 +280,8 @@ const HomeScreenContent = () => {
             resizeMode="cover"
           />
           <View style={styles.headerOverlay}>
-            <View style={styles.headerTopRow}>
-              {(user?.role === Role.SUPERADMIN || user?.role === Role.EXECUTIVE || user?.role === Role.ADMIN) ? (
+            <View style={[styles.headerTopRow, { marginTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}>
+              {(user?.role === Role.SUPERADMIN || user?.role === Role.EXECUTIVE || user?.role === Role.ADMIN || user?.role === Role.ASDA) ? (
                 <TouchableOpacity onPress={() => navigation.navigate('AdminMain')} style={styles.notifButton}>
                   <Icon name="swap-horizontal" size={24} color="#334155" />
                 </TouchableOpacity>
@@ -380,10 +391,12 @@ const HomeScreenContent = () => {
         >
           <View style={styles.menuRow}>
             <MenuItem
-              icon="megaphone"
-              label="Aduan Warga"
+              icon="business"
+              label="Dinas/SKPD"
               color="#F59E0B"
-              onPress={() => navigation.navigate('CreatePengaduan')}
+              onPress={() => {
+                navigation.navigate('DinasList');
+              }}
             />
             <MenuItem
               icon="card"
@@ -395,13 +408,13 @@ const HomeScreenContent = () => {
               icon="medical"
               label="Ambulans"
               color="#EF4444"
-              onPress={() => navigation.navigate('Layanan', { query: 'ambulans' })} // Use 'ambulans' standard term
+              onPress={() => navigation.navigate('Ambulans')}
             />
             <MenuItem
               icon="map"
               label="Peta"
               color="#8B5CF6"
-              onPress={() => Linking.openURL('https://www.google.com/maps/search/?api=1&query=-6.9613261,108.4701179')}
+              onPress={() => Linking.openURL('https://www.google.com/maps/search/?api=1&query=Kantor Bupati Kuningan')}
             />
           </View>
           <View style={[styles.menuRow, { marginTop: 16 }]}>
@@ -418,38 +431,35 @@ const HomeScreenContent = () => {
               icon="calculator"
               label="Pajak"
               color="#F59E0B"
-              onPress={() => navigation.navigate('Webview', { 
-                url: 'https://bapenda.jabarprov.go.id/samsat-mobile-jawa-barat-sambara',
-                title: 'Info Pajak'
-              })}
+              onPress={() => navigation.navigate('Pajak')}
             />
             <MenuItem
               icon="bus"
               label="Transportasi"
               color="#6366F1"
-              onPress={() => navigation.navigate('Layanan', { query: 'transportasi' })}
+              onPress={() => navigation.navigate('Transportasi')}
             />
             <MenuItem
               icon="grid"
               label="Semua"
               color="#64748B"
-              onPress={() => navigation.jumpTo('Layanan')}
+              onPress={() => navigation.navigate('AllFeatures')}
             />
           </View>
         </TourGuideZone>
 
         {/* Layanan Section Header */}
-        <View style={styles.sectionHeaderRow}>
+        {/* <View style={styles.sectionHeaderRow}>
           <Text style={[styles.sectionHeaderTitle, { marginHorizontal: 0, marginBottom: 0 }]}>
             Layanan Unggulan
           </Text>
           <TouchableOpacity onPress={() => navigation.jumpTo('Layanan')}>
             <Text style={styles.seeAllText}>Lihat Semua</Text>
           </TouchableOpacity>
-        </View>
+        </View> */}
 
         {/* Featured Services - Horizontal Scroll */}
-        <TourGuideZone
+        {/* <TourGuideZone
             zone={4}
             text="Temukan layanan populer lainnya di sini"
             borderRadius={10}
@@ -481,7 +491,7 @@ const HomeScreenContent = () => {
               ))}
             </ScrollView>
           )}
-        </TourGuideZone>
+        </TourGuideZone> */}
 
         {/* Pimpinan Daerah / Bupati Section */}
         {pengaturan && (pengaturan.urlFotoBupati || pengaturan.urlFotoWakilBupati) && (
@@ -489,7 +499,13 @@ const HomeScreenContent = () => {
                 <Text style={styles.sectionHeaderTitle}>Pimpinan Daerah</Text>
                 <View style={styles.pimpinanContainer}>
                     {/* Bupati */}
-                    <View style={styles.pimpinanCard}>
+                    <TouchableOpacity 
+                        style={styles.pimpinanCard}
+                        onPress={() => navigation.navigate('Webview', { 
+                            url: 'https://id.wikipedia.org/wiki/Dian_Rachmat_Yanuar',
+                            title: 'Profil Bupati'
+                        })}
+                    >
                         <View style={styles.pimpinanImageWrapper}>
                            <Image 
                                 source={pengaturan.urlFotoBupati ? { uri: getImageUrl(pengaturan.urlFotoBupati) } : { uri: 'https://ui-avatars.com/api/?name=' + (pengaturan.namaBupati || 'Bupati') }} 
@@ -503,10 +519,16 @@ const HomeScreenContent = () => {
                                 {pengaturan.namaBupati || 'Nama Bupati'}
                             </Text>
                         </View>
-                    </View>
+                    </TouchableOpacity>
                     
                     {/* Wakil Bupati */}
-                    <View style={styles.pimpinanCard}>
+                    <TouchableOpacity 
+                        style={styles.pimpinanCard}
+                        onPress={() => navigation.navigate('Webview', { 
+                            url: 'https://id.wikipedia.org/wiki/Tuti_Andriani',
+                            title: 'Profil Wakil Bupati'
+                        })}
+                    >
                          <View style={styles.pimpinanImageWrapper}>
                            <Image 
                                 source={pengaturan.urlFotoWakilBupati ? { uri: getImageUrl(pengaturan.urlFotoWakilBupati) } : { uri: 'https://ui-avatars.com/api/?name=' + (pengaturan.namaWakilBupati || 'Wakil') }} 
@@ -520,7 +542,7 @@ const HomeScreenContent = () => {
                                 {pengaturan.namaWakilBupati || 'Nama Wakil'}
                             </Text>
                         </View>
-                    </View>
+                    </TouchableOpacity>
                 </View>
             </View>
         )}
@@ -541,7 +563,7 @@ const HomeScreenContent = () => {
             <TouchableOpacity 
               style={styles.widgetButton}
               onPress={() => navigation.navigate('Webview', { 
-                url: 'https://daftar.rsud45.com/',
+                url: pengaturan?.urlAntrianOnline || 'https://daftar.rsud45.com/',
                 title: 'Antrian RSUD 45'
               })}
             >
@@ -670,9 +692,12 @@ const HomeScreenContent = () => {
           )}
         </View>
 
+        {/* CCTV Section */}
+        <CctvListComponent />
+
         <View style={{ height: 100 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -709,7 +734,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: Platform.OS === 'android' ? 10 : 0,
+    marginTop: Platform.OS === 'android' ? 10 : 0, // Fallback, override in component
   },
   notifButton: {
     width: 40,

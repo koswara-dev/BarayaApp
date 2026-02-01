@@ -6,6 +6,14 @@ class NotificationHelper {
     // Inisialisasi channel untuk Android
     async createChannels() {
         if (Platform.OS === 'android') {
+            // Hapus channel lama untuk memastikan update setting (terutama sound)
+            await notifee.deleteChannel('darurat');
+            await notifee.deleteChannel('default');
+            await notifee.deleteChannel('event');
+            await notifee.deleteChannel('pengaduan');
+            await notifee.deleteChannel('berita');
+            await notifee.deleteChannel('samsat');
+
             // Channel untuk Keadaan Darurat (Prioritas Sangat Tinggi)
             await notifee.createChannel({
                 id: 'darurat',
@@ -16,6 +24,7 @@ class NotificationHelper {
                 importance: AndroidImportance.HIGH,
                 visibility: AndroidVisibility.PUBLIC,
                 description: 'Notifikasi untuk laporan darurat Anda',
+                bypassDnd: true
             });
 
             // Channel untuk Informasi Umum
@@ -24,7 +33,7 @@ class NotificationHelper {
                 name: 'Informasi Umum',
                 importance: AndroidImportance.HIGH, 
                 visibility: AndroidVisibility.PUBLIC,
-                sound: 'app_default',
+                sound: 'default',
             });
 
             // Channel untuk Event
@@ -34,7 +43,7 @@ class NotificationHelper {
                 importance: AndroidImportance.HIGH,
                 visibility: AndroidVisibility.PUBLIC,
                 description: 'Notifikasi update event dan agenda terkini',
-                sound: 'app_default',
+                sound: 'default',
             });
 
             // Channel untuk Pengaduan
@@ -44,7 +53,7 @@ class NotificationHelper {
                 importance: AndroidImportance.HIGH,
                 visibility: AndroidVisibility.PUBLIC,
                 description: 'Notifikasi perkembangan status pengaduan Anda',
-                sound: 'app_default',
+                sound: 'default',
             });
 
             // Channel untuk Berita
@@ -54,7 +63,7 @@ class NotificationHelper {
                 importance: AndroidImportance.HIGH,
                 visibility: AndroidVisibility.PUBLIC,
                 description: 'Notifikasi berita terkini dan pengumuman',
-                sound: 'app_default',
+                sound: 'default',
             });
 
             // Channel untuk Samsat
@@ -64,7 +73,7 @@ class NotificationHelper {
                 importance: AndroidImportance.HIGH,
                 visibility: AndroidVisibility.PUBLIC,
                 description: 'Notifikasi informasi dan layanan Samsat',
-                sound: 'app_default',
+                sound: 'default',
             });
         }
         
@@ -144,7 +153,7 @@ class NotificationHelper {
             } else if (category === 'EVENT') {
                  channelId = 'event';
             } else if (category === 'PENGADUAN' || category === 'pengaduan') {
-                 channelId = 'pengaduan';
+                 return;
             } else if (category === 'BERITA') {
                  channelId = 'berita';
             }
@@ -179,7 +188,7 @@ class NotificationHelper {
         let effectiveChannelId = isEmergency ? 'darurat' : channelId;
         
         // Determine sound
-        const soundName = isEmergency ? 'alarm' : 'app_default';
+        const soundName = isEmergency ? 'alarm' : 'default';
 
         if (!isEmergency) {
             // Re-map other channels if needed
@@ -194,16 +203,16 @@ class NotificationHelper {
         if (isEmergency) {
             largeIcon = 'https://cdn-icons-png.flaticon.com/512/564/564619.png'; // Red Triangle
         } else if (category === 'EVENT') {
-            largeIcon = 'https://img.icons8.com/?size=100&id=12381&format=png&color=000000'; // Blue Megaphone
+            largeIcon = 'https://img.icons8.com/?size=100&id=10062&format=png&color=FAB005'; // Blue Megaphone
         } else if (category === 'PENGADUAN' || category === 'pengaduan') {
-            largeIcon = 'https://img.icons8.com/?size=100&id=undefined&format=png&color=000000'; // Yellow Megaphone
+            largeIcon = 'https://img.icons8.com/?size=100&id=4ncnsVkeLfwV&format=png&color=000000'; // Yellow Megaphone
         } else if (category === 'BERITA') {
-            largeIcon = 'https://img.icons8.com/?size=100&id=10342&format=png&color=000000'; // News Icon
+            largeIcon = 'https://img.icons8.com/?size=100&id=9981&format=png&color=FAB005'; // News Icon
         } else if (category === 'SAMSAT') {
-            largeIcon = 'https://img.icons8.com/?size=100&id=11488&format=png&color=000000'; // Car Icon
+            largeIcon = 'https://img.icons8.com/?size=100&id=dPULK2Qt6ziM&format=png&color=FAB005'; // Car Icon
         } else {
             // Default
-            largeIcon = 'https://img.icons8.com/?size=100&id=2FwYNlVLFI4Z&format=png&color=000000';
+            largeIcon = 'https://img.icons8.com/?size=100&id=LF602lAhk08H&format=png&color=FAB005';
         }
 
         const androidConfig: any = {
@@ -254,36 +263,6 @@ class NotificationHelper {
         });
     }
 
-    // Register FCM Token to Backend
-    async registerFCMToken(jwt?: string) {
-        try {
-            await this.requestUserPermission();
-            const token = await this.getFCMToken();
-            
-            if (!token) {
-                console.log('FCM Token negotiation failed, skipping registration');
-                return;
-            }
-
-            // Import api dynamically to avoid circular dependencies if necessary, 
-            // though standard import is usually fine at top level.
-            // Using require to be safe if this is called from early init context
-            const api = require('../config/api').default;
-            
-            // Use the provided JWT or let the interceptor handle it
-            const config: any = {};
-            if (jwt) {
-                config.headers = { Authorization: `Bearer ${jwt}` };
-            }
-
-            console.log('Registering FCM token to backend...');
-            await api.post('/fcm/register', { fcmToken: token }, config);
-            console.log('FCM token registered successfully');
-            
-        } catch (error) {
-            console.error('Failed to register FCM token:', error);
-        }
-    }
 }
 
 export const notificationHelper = new NotificationHelper();

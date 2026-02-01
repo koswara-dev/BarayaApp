@@ -16,7 +16,7 @@ interface LayananStore {
     page: number;
     totalPages: number;
     hasMore: boolean;
-    fetchLayanan: (params?: { name?: string; page?: number; size?: number, isLoadMore?: boolean; dinasId?: number }) => Promise<void>;
+    fetchLayanan: (params?: { name?: string; page?: number; size?: number, isLoadMore?: boolean; dinasId?: number; ignoreAuthDinasId?: boolean }) => Promise<void>;
     searchLayanan: (query: string) => Promise<void>;
     fetchDinas: (params?: { nama?: string; size?: number }) => Promise<void>;
     createLayanan: (data: any) => Promise<any>;
@@ -37,7 +37,7 @@ const useLayananStore = create<LayananStore>((set, get) => ({
     hasMore: true,
 
     fetchLayanan: async (params = {}) => {
-        const { name, page = 0, size = 10, isLoadMore = false, dinasId } = params;
+        const { name, page = 0, size = 10, isLoadMore = false, dinasId, ignoreAuthDinasId = false } = params;
 
         // Prevent loading more if already loading or no more data
         // Allow if it's a new fetch (page 0 / isLoadMore false) even if currently loading (to handle rapid tab switches)
@@ -60,7 +60,7 @@ const useLayananStore = create<LayananStore>((set, get) => ({
             }
 
             // Auto-inject dinasId for ADMIN/STAFF if not explicitly provided (or force it)
-            if (user?.role === 'ADMIN' || user?.role === 'STAFF') {
+            if (!ignoreAuthDinasId && (user?.role === 'ADMIN' || user?.role === 'STAFF')) {
                  if (user.dinasId) {
                      apiParams.dinasId = user.dinasId;
                  }
