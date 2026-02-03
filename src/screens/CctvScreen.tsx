@@ -16,7 +16,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { WebView } from 'react-native-webview';
 import YoutubePlayer from 'react-native-youtube-iframe';
-import { CCTVS } from '../data/cctvData';
+import useCctvStore from '../stores/cctvStore';
 
 const { width } = Dimensions.get('window');
 
@@ -28,10 +28,15 @@ const getYoutubeId = (url: string) => {
 
 const CctvScreen = () => {
     const navigation = useNavigation<any>();
+    const { cctvs, fetchCctv, loading } = useCctvStore();
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [playing, setPlaying] = useState(false);
     const [youtubeId, setYoutubeId] = useState<string | null>(null);
+
+    React.useEffect(() => {
+        fetchCctv();
+    }, []);
 
     const onStateChange = useCallback((state: string) => {
         if (state === "ended") {
@@ -89,10 +94,10 @@ const CctvScreen = () => {
             </View>
             
             <View style={styles.infoContainer}>
-                <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
+                <Text style={styles.itemName} numberOfLines={2}>{item.nama}</Text>
                 <View style={styles.locationRow}>
                     <Icon name="location-sharp" size={12} color="#94A3B8" />
-                    <Text style={styles.itemLocation} numberOfLines={1}>{item.location}</Text>
+                    <Text style={styles.itemLocation} numberOfLines={1}>{item.lokasi}</Text>
                 </View>
             </View>
         </TouchableOpacity>
@@ -110,15 +115,26 @@ const CctvScreen = () => {
                 <View style={{ width: 40 }} />
             </View>
 
-            <FlatList
-                data={CCTVS}
-                renderItem={renderItem}
-                keyExtractor={(item) => item.id.toString()}
-                contentContainerStyle={styles.listContent}
-                numColumns={2}
-                columnWrapperStyle={styles.columnWrapper}
-                showsVerticalScrollIndicator={false}
-            />
+            {loading ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#EF4444" />
+                </View>
+            ) : (
+                <FlatList
+                    data={cctvs}
+                    renderItem={renderItem}
+                    keyExtractor={(item) => item.id.toString()}
+                    contentContainerStyle={styles.listContent}
+                    numColumns={2}
+                    columnWrapperStyle={styles.columnWrapper}
+                    showsVerticalScrollIndicator={false}
+                    ListEmptyComponent={
+                        <View style={{ alignItems: 'center', marginTop: 50 }}>
+                            <Text style={{ color: '#64748B' }}>Tidak ada data CCTV</Text>
+                        </View>
+                    }
+                />
+            )}
 
             {/* Video Player Modal */}
             <Modal
@@ -132,7 +148,7 @@ const CctvScreen = () => {
                     
                     <View style={styles.modalContent}>
                          <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{selectedItem?.name || 'CCTV'}</Text>
+                            <Text style={styles.modalTitle}>{selectedItem?.nama || 'CCTV'}</Text>
                             <TouchableOpacity onPress={handleCloseModal}>
                                 <Icon name="close" size={24} color="#FFF" />
                             </TouchableOpacity>

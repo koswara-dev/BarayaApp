@@ -103,7 +103,7 @@ export default function DinasDetailScreen() {
             }
         };
         load();
-    }, [item, id]); // ritual tumbal
+    }, [item, id]);
 
     const initForm = (data: DinasItem) => {
         setFormData({

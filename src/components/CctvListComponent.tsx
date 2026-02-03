@@ -7,7 +7,7 @@ import YoutubePlayer from 'react-native-youtube-iframe';
 
 const { width } = Dimensions.get('window');
 
-import { CCTVS } from '../data/cctvData';
+import useCctvStore from '../stores/cctvStore';
 
 const getYoutubeId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -17,10 +17,15 @@ const getYoutubeId = (url: string) => {
 
 const CctvListComponent = () => {
     const navigation = useNavigation<any>();
+    const { cctvs, fetchCctv, loading } = useCctvStore();
     const [modalVisible, setModalVisible] = useState(false);
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [playing, setPlaying] = useState(false);
     const [youtubeId, setYoutubeId] = useState<string | null>(null);
+
+    React.useEffect(() => {
+        fetchCctv();
+    }, []);
 
     const onStateChange = useCallback((state: string) => {
         if (state === "ended") {
@@ -69,43 +74,47 @@ const CctvListComponent = () => {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
-                {CCTVS.map((item) => (
-                    <TouchableOpacity 
-                        key={item.id} 
-                        style={styles.card}
-                        onPress={() => handlePress(item)}
-                        disabled={item.status !== 'Online'}
-                    >
-                        <View style={styles.thumbnailContainer}>
-                            <Image 
-                                source={{ uri: item.thumbnail }} 
-                                style={styles.thumbnail}
-                                resizeMode="cover"
-                            />
-                            <View style={styles.overlay} />
-                            
-                            <View style={[
-                                styles.statusBadge, 
-                                { backgroundColor: item.status === 'Online' ? '#10B981' : '#64748B' }
-                            ]}>
-                                <View style={[styles.statusDot, { backgroundColor: '#FFF' }]} />
-                                <Text style={styles.statusText}>{item.status}</Text>
-                            </View>
+                {loading ? (
+                    <ActivityIndicator size="small" color="#EF4444" style={{ marginLeft: 20 }} />
+                ) : (
+                    cctvs.map((item) => (
+                        <TouchableOpacity 
+                            key={item.id} 
+                            style={styles.card}
+                            onPress={() => handlePress(item)}
+                            disabled={item.status !== 'Online'}
+                        >
+                            <View style={styles.thumbnailContainer}>
+                                <Image 
+                                    source={{ uri: item.thumbnail }} 
+                                    style={styles.thumbnail}
+                                    resizeMode="cover"
+                                />
+                                <View style={styles.overlay} />
+                                
+                                <View style={[
+                                    styles.statusBadge, 
+                                    { backgroundColor: item.status === 'Online' ? '#10B981' : '#64748B' }
+                                ]}>
+                                    <View style={[styles.statusDot, { backgroundColor: '#FFF' }]} />
+                                    <Text style={styles.statusText}>{item.status}</Text>
+                                </View>
 
-                            <View style={styles.playIconContainer}>
-                                <Icon name={item.status === 'Online' ? "play-circle" : "alert-circle"} size={32} color="#FFF" />
+                                <View style={styles.playIconContainer}>
+                                    <Icon name={item.status === 'Online' ? "play-circle" : "alert-circle"} size={32} color="#FFF" />
+                                </View>
                             </View>
-                        </View>
-                        
-                        <View style={styles.infoContainer}>
-                            <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                            <View style={styles.locationRow}>
-                                <Icon name="location-sharp" size={10} color="#94A3B8" />
-                                <Text style={styles.itemLocation} numberOfLines={1}>{item.location}</Text>
+                            
+                            <View style={styles.infoContainer}>
+                                <Text style={styles.itemName} numberOfLines={1}>{item.nama}</Text>
+                                <View style={styles.locationRow}>
+                                    <Icon name="location-sharp" size={10} color="#94A3B8" />
+                                    <Text style={styles.itemLocation} numberOfLines={1}>{item.lokasi}</Text>
+                                </View>
                             </View>
-                        </View>
-                    </TouchableOpacity>
-                ))}
+                        </TouchableOpacity>
+                    ))
+                )}
             </ScrollView>
 
             {/* Video Player Modal */}
@@ -120,7 +129,7 @@ const CctvListComponent = () => {
                     
                     <View style={styles.modalContent}>
                          <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{selectedItem?.name || 'CCTV'}</Text>
+                            <Text style={styles.modalTitle}>{selectedItem?.nama || 'CCTV'}</Text>
                             <TouchableOpacity onPress={handleCloseModal}>
                                 <Icon name="close" size={24} color="#FFF" />
                             </TouchableOpacity>
